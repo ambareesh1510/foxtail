@@ -1,0 +1,4 @@
+bin/
+isodir/
+kernel.elf
+os.iso
