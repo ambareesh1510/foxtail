@@ -1,7 +1,3 @@
-CC = clang
-LD = ld.lld
-CFLAGS = -target i386-elf -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -nostdlib
-LDFLAGS = -m elf_i386 -nostdlib -T link.ld
 
 SRC_DIR = kernel/src
 INCLUDE_DIR = kernel/include
@@ -16,6 +12,11 @@ KERNEL = kernel.elf
 
 ISO_DIR = isodir
 ISO = os.iso
+
+CC = clang
+LD = ld.lld
+CFLAGS = -target i386-elf -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -nostdlib -I $(INCLUDE_DIR)
+LDFLAGS = -m elf_i386 -nostdlib -T link.ld
 
 .PHONY: all clean run iso_dir prepare_iso prepare
 

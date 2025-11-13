@@ -1,4 +1,6 @@
 bin/
 isodir/
+.cache/
 kernel.elf
 os.iso
+compile_commands.json
