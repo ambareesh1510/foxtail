@@ -11,12 +11,10 @@
     .long MULTIBOOT_FLAGS
     .long MULTIBOOT_CHECKSUM
 
-    .section .text
+.section .boot, "ax", %progbits
     .globl _start
     .type _start, @function
 _start:
-    /* Clear interrupts (GRUB probably already set things up)
-       and call kernel_main (C). */
     cli
     call kernel_main
 

@@ -1,6 +1,7 @@
 #include "util.h"
 #include "interrupt.h"
 #include "io.h"
+#include "vga.h"
 
 char kb_char;
 volatile uint32_t ticks = 0;
@@ -57,13 +58,17 @@ inline void pic_send_eoi(uint8_t irq) {
 }
 
 __attribute__ ((interrupt))
-void timer_interrupt_handler(__attribute__ ((unused)) struct interrupt_frame *frame) {
+void timer_interrupt_handler(
+    __attribute__ ((unused)) struct interrupt_frame *frame
+) {
     ticks++;
     pic_send_eoi(0);
 }
 
 __attribute__ ((interrupt))
-void keyboard_interrupt_handler(__attribute__ ((unused)) struct interrupt_frame *frame) {
+void keyboard_interrupt_handler(
+    __attribute__ ((unused)) struct interrupt_frame *frame
+) {
     uint8_t scancode = inb(0x60);
     kb_char = scancode;
     pic_send_eoi(1);
@@ -123,7 +128,8 @@ void pic_remap() {
 
 #define IDT_FLAG_INTERRUPT_GATE 0x8E
 
-void idt_load() {
+void 
+idt_load() {
     idt_desc.size = sizeof(idt) - 1;
     idt_desc.offset = (uint32_t) &idt;
 

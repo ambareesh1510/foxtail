@@ -1,61 +1,55 @@
 #include "interrupt.h"
+#include "gdt.h"
 #include "vga.h"
+#include "paging.h"
+#include "util.h"
 
-// Placeholder implementations of string formatting functions
+__attribute__((aligned(4096))) 
+__attribute__ ((section(".boot.data")))
+uint32_t kernel_pgdir[1024] = {0};
+__attribute__((aligned(4096)))
+__attribute__ ((section(".boot.data")))
+uint32_t kernel_id_pgtbl[1024] = {0};
 
-void char_to_hex_string(char c, char *buf) {
-    const char hex_digits[] = "0123456789ABCDEF";
-    buf[0] = hex_digits[(c >> 4) & 0xF];
-    buf[1] = hex_digits[c & 0xF];
-    buf[2] = '\0';
+void higher_half_entry();
+
+void 
+__attribute__ ((section(".boot.text")))
+kernel_main(void) {
+    paging_setup(kernel_pgdir, kernel_id_pgtbl);
+
+    // Increment stack pointer and base pointer so they point to higher half
+    // addresses. We need this so that we can use the stack once the lower half
+    // mapping is invalidated.
+    __asm__ volatile (
+        "add $0xC0000000, %esp\n"
+        "add $0xC0000000, %ebp\n"
+    );
+
+    higher_half_entry();
 }
 
-void uint32_to_string(uint32_t value, char* buf) {
-    // Handle the special case of 0.
-    if (value == 0) {
-        buf[0] = '0';
-        buf[1] = '\0';
-        return;
-    }
+void
+higher_half_entry() {
+    // Unmap the identity mapping of the lower half.
+    kernel_pgdir[0] = 0;
+    __asm__ volatile ("invlpg [0]");
 
-    int i = 0;
-    // Find the digits in reverse order.
-    while (value > 0) {
-        buf[i] = '0' + (value % 10);  // Get the last digit
-        value /= 10;                   // Remove the last digit
-        i++;
-    }
-
-    // Null-terminate the string
-    buf[i] = '\0';
-
-    // Reverse the string to get the correct order
-    int start = 0;
-    int end = i - 1;
-    while (start < end) {
-        // Swap the characters
-        char temp = buf[start];
-        buf[start] = buf[end];
-        buf[end] = temp;
-        start++;
-        end--;
-    }
-}
-
-void kernel_main(void) {
-    idt_load();
     vga_clear();
 
+    // We need to set the GDT to be able to use segment selectors in the higher
+    // half.
+    gdt_load();
+    idt_load();
     char buf[100];
     for (;;) {
         char_to_hex_string(kb_char, buf);
-        vga_write_at(buf, 0, 0, 0x07);
+        vga_write_at(buf, 5, 0, 0x07);
         uint32_to_string(ticks, buf);
-        vga_write_at(buf, 1, 0, 0x07);
+        vga_write_at(buf, 6, 0, 0x07);
     }
 
     for (;;) {
         __asm__ volatile ("hlt");
     }
 }
-

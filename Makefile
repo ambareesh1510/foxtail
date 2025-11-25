@@ -15,7 +15,7 @@ ISO = os.iso
 
 CC = clang
 LD = ld.lld
-CFLAGS = -target i386-elf -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -nostdlib -I $(INCLUDE_DIR)
+CFLAGS = -target i386-elf -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -nostdlib -mno-sse -I $(INCLUDE_DIR)
 LDFLAGS = -m elf_i386 -nostdlib -T link.ld
 
 .PHONY: all clean run iso_dir prepare_iso prepare
@@ -49,7 +49,7 @@ run: $(ISO)
 	qemu-system-i386 -cdrom $(ISO) -m 512
 
 kernel: $(KERNEL)
-	qemu-system-i386 -kernel $(KERNEL) -m 1024
+	qemu-system-i386 -kernel $(KERNEL) -m 1024M -d int,cpu_reset
 
 clean:
 	rm -f $(KERNEL) $(ISO)

@@ -1,0 +1,20 @@
+#ifndef PAGING_H
+#define PAGING_H
+
+#include "util.h"
+
+#define PGDIR_LEN 1024
+#define PGTBL_LEN PGDIR_LEN
+#define PGSIZE 0x1000
+
+#define HIGHER_HALF_BASE 0xC0000000
+
+typedef uint32_t pgdir[PGDIR_LEN];
+typedef uint32_t pgtbl[PGTBL_LEN];
+
+// void paging_setup();
+void 
+__attribute__ ((section(".boot.text")))
+paging_setup(uint32_t *kernel_pgdir, uint32_t *kernel_id_pgtbl);
+
+#endif /* PAGING_H */
