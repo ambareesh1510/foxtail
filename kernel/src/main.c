@@ -2,6 +2,7 @@
 #include "gdt.h"
 #include "vga.h"
 #include "paging.h"
+#include "kprintf.h"
 #include "util.h"
 
 __attribute__((aligned(4096))) 
@@ -41,12 +42,9 @@ higher_half_entry() {
     // half.
     gdt_load();
     idt_load();
-    char buf[100];
+
     for (;;) {
-        char_to_hex_string(kb_char, buf);
-        vga_write_at(buf, 5, 0, 0x07);
-        uint32_to_string(ticks, buf);
-        vga_write_at(buf, 6, 0, 0x07);
+        kprintf("Ticks: %d, kb: %x\n", ticks, (uint32_t) (unsigned char) kb_char);
     }
 
     for (;;) {

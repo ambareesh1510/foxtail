@@ -1,12 +1,14 @@
+#include <stdarg.h>
+#include <stdbool.h>
 #include "vga.h"
 #include "util.h"
 
-void vga_putch_at(char c, unsigned int row, unsigned int col, uint8_t attr) {
+void vga_putch_at(char c, uint32_t row, uint32_t col, uint8_t attr) {
     unsigned int idx = row * VGA_WIDTH + col;
     VGA[idx] = ((uint16_t) attr << 8) | (uint8_t) c;
 }
 
-void vga_write_at(const char *s, unsigned int row, unsigned int col, uint8_t attr) {
+void vga_write_at(const char *s, uint32_t row, uint32_t col, uint8_t attr) {
     unsigned int c = col;
     char ch;
     while ((ch = *s++)) {
@@ -25,3 +27,4 @@ void vga_clear() {
         }
     }
 }
+
