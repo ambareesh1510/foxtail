@@ -1,0 +1,145 @@
+#include <dirent.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <limits.h>
+
+#include "fs.h"
+
+#define FS_DIR "mkfs/fs"
+#define FS_OUT "fs.bin"
+
+const char* get_filename(const char* path) {
+    const char* filename = strrchr(path, '/');
+    return filename ? filename + 1 : path;
+}
+
+size_t process_file(
+    struct inode *inodes,
+    size_t *curr_inode,
+    char *data_blocks,
+    size_t *curr_data_block,
+    char *name
+) {
+    FILE *f;
+    f = fopen(name, "rb");
+    if (f == NULL) {
+        printf("Could not open file %s\n", name);
+        return 0;
+    }
+    printf("Writing %s to filesystem\n", name);
+    struct inode new_inode = {0};
+    strncpy(new_inode.name, get_filename(name), FILENAME_MAX_LEN - 1);
+    new_inode.type = FT_FILE;
+    char buf[BLOCK_SIZE] = {0};
+    size_t inode_block_idx = 0;
+    size_t total_size = 0;
+    size_t read_size = 0;
+    // TODO: Test if this while loop condition actually works
+    while ((read_size = fread(buf, 1, BLOCK_SIZE, f)) != 0) {
+        if (inode_block_idx >= NDIRECT) {
+            break;
+        }
+        memcpy(
+            data_blocks + (*curr_data_block) * BLOCK_SIZE,
+            buf,
+            BLOCK_SIZE
+        );
+        memset(buf, 0, BLOCK_SIZE);
+        new_inode.data.file_data.blocks[inode_block_idx] = *curr_data_block;
+        inode_block_idx++;
+        (*curr_data_block)++;
+        total_size += read_size;
+    }
+    new_inode.data.file_data.size = total_size;
+    inodes[*curr_inode] = new_inode;
+    fclose(f);
+    return (*curr_inode)++;
+}
+
+int process_dir(
+    struct inode *inodes,
+    size_t *curr_inode,
+    char *data_blocks,
+    size_t *curr_data_block,
+    char *name
+) {
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(name);
+    if (d == NULL) {
+        printf("Could not open directory %s\n", name);
+        // TODO: (return 0 ==> error) isn't actually true because root returns inode 0...
+        // but we can ignore that for now since we don't use the return value when this function is called on root
+        return 0;
+    }
+    size_t reserved_inode_idx = *curr_inode;
+    (*curr_inode)++;
+    struct inode new_inode = {0};
+    if (strcmp(name, FS_DIR) == 0) {
+        strcpy(new_inode.name, "~");
+    } else {
+        strncpy(new_inode.name, get_filename(name), FILENAME_MAX_LEN - 1);
+    }
+    printf("Writing dir %s\n", new_inode.name);
+    new_inode.type = FT_DIRECTORY;
+    new_inode.data.directory_data.num_entries = 0;
+    size_t dirent_idx = 0;
+    // TODO: write blocks for dir
+    while ((dir = readdir(d)) != NULL) {
+        if (strcmp(dir->d_name, ".") == 0 || strcmp(dir->d_name, "..") == 0 || strcmp(dir->d_name, name) == 0) {
+            continue;
+        }
+        int inode_idx = 0;
+        size_t len = strlen(name) + strlen(dir->d_name) + 2;
+        char *buf = malloc(len);
+        strcpy(buf, name);
+        strcat(buf, "/");
+        strcat(buf, dir->d_name);
+        if (dir->d_type == DT_REG) {
+            inode_idx = process_file(inodes, curr_inode, data_blocks, curr_data_block, buf);
+        } else if (dir->d_type == DT_DIR) {
+            inode_idx = process_dir(inodes, curr_inode, data_blocks, curr_data_block, buf);
+        }
+        printf("Before parsing %s, num entires is %d, and new inode is %d\n", buf, new_inode.data.directory_data.num_entries, inode_idx);
+        free(buf);
+        if (inode_idx == 0) {
+            continue;
+        }
+        printf("Writing dirent to %d: inode idx %d\n", reserved_inode_idx, inode_idx);
+        new_inode.data.directory_data.direct_files[new_inode.data.directory_data.num_entries] = inode_idx;
+        new_inode.data.directory_data.num_entries++;
+    }
+    closedir(d);
+    inodes[reserved_inode_idx] = new_inode;
+    printf("For dir inode %d\n", reserved_inode_idx);
+    for (size_t i = 0; i < new_inode.data.directory_data.num_entries; i++) {
+        printf("entry %d is inode %d\n", i, new_inode.data.directory_data.direct_files[i]);
+    }
+    return reserved_inode_idx;
+}
+
+int main() {
+#if CHAR_BIT != 8
+#error CHAR_BIT != 8
+#endif
+
+    struct inode inodes[NUM_INODE_BLOCKS * (BLOCK_SIZE / sizeof(struct inode))] = {0};
+    size_t curr_inode = 0;
+    char data_blocks[BLOCK_SIZE * (NUM_BLOCKS - NUM_INODE_BLOCKS)] = {0};
+    size_t curr_data_block = NUM_INODE_BLOCKS;
+
+    process_dir(inodes, &curr_inode, data_blocks, &curr_data_block, FS_DIR);
+
+    FILE *fs;
+    fs = fopen(FS_OUT, "wb");
+    if (fs == NULL) {
+        printf("Failed to open %s for writing\n", FS_OUT);
+        return 1;
+    }
+    fwrite(inodes, sizeof(struct inode), sizeof(inodes) / sizeof(struct inode), fs);
+    fwrite(data_blocks, BLOCK_SIZE, NUM_BLOCKS - NUM_INODE_BLOCKS, fs);
+    fclose(fs);
+
+    return 0;
+}

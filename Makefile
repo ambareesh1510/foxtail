@@ -15,7 +15,7 @@ ISO = os.iso
 
 CC = clang
 LD = ld.lld
-CFLAGS = -target i386-elf -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -nostdlib -mno-sse -I $(INCLUDE_DIR)
+CFLAGS = -target i386-elf -std=c23 -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -Wpedantic -nostdlib -mno-sse -I $(INCLUDE_DIR)
 LDFLAGS = -m elf_i386 -nostdlib -T link.ld
 
 .PHONY: all clean run iso_dir prepare_iso prepare
@@ -59,3 +59,8 @@ clean:
 prepare:
 	mkdir -p $(OBJ_DIR)
 
+fs:
+	rm -f fs.bin
+	mkdir -p mkfs/bin
+	$(CC) -std=c23 -Ikernel/include/ mkfs/src/main.c -o mkfs/bin/mkfs -D_DEFAULT_SOURCE
+	mkfs/bin/mkfs

@@ -4,3 +4,4 @@ isodir/
 kernel.elf
 os.iso
 compile_commands.json
+fs.bin
