@@ -4,13 +4,13 @@
 #include <stdio.h>
 #include <limits.h>
 
-#include "fs.h"
+#include "fs_defs.h"
 
 #define FS_DIR "mkfs/fs"
 #define FS_OUT "fs.bin"
 
-const char* get_filename(const char* path) {
-    const char* filename = strrchr(path, '/');
+const char *get_filename(const char *path) {
+    const char *filename = strrchr(path, '/');
     return filename ? filename + 1 : path;
 }
 
@@ -24,10 +24,10 @@ size_t process_file(
     FILE *f;
     f = fopen(name, "rb");
     if (f == NULL) {
-        printf("Could not open file %s\n", name);
+        printf("[ERR] Could not open file %s\n", name);
         return 0;
     }
-    printf("Writing %s to filesystem\n", name);
+    printf("[LOG] Adding file %s\n", name);
     struct inode new_inode = {0};
     strncpy(new_inode.name, get_filename(name), FILENAME_MAX_LEN - 1);
     new_inode.type = FT_FILE;
@@ -41,7 +41,7 @@ size_t process_file(
             break;
         }
         memcpy(
-            data_blocks + (*curr_data_block) * BLOCK_SIZE,
+            data_blocks + (*curr_data_block - NUM_INODE_BLOCKS) * BLOCK_SIZE,
             buf,
             BLOCK_SIZE
         );
@@ -68,7 +68,7 @@ int process_dir(
     struct dirent *dir;
     d = opendir(name);
     if (d == NULL) {
-        printf("Could not open directory %s\n", name);
+        printf("[ERR] Could not open directory %s\n", name);
         // TODO: (return 0 ==> error) isn't actually true because root returns inode 0...
         // but we can ignore that for now since we don't use the return value when this function is called on root
         return 0;
@@ -81,7 +81,7 @@ int process_dir(
     } else {
         strncpy(new_inode.name, get_filename(name), FILENAME_MAX_LEN - 1);
     }
-    printf("Writing dir %s\n", new_inode.name);
+    printf("[LOG] Adding dir %s\n", new_inode.name);
     new_inode.type = FT_DIRECTORY;
     new_inode.data.directory_data.num_entries = 0;
     size_t dirent_idx = 0;
@@ -101,21 +101,15 @@ int process_dir(
         } else if (dir->d_type == DT_DIR) {
             inode_idx = process_dir(inodes, curr_inode, data_blocks, curr_data_block, buf);
         }
-        printf("Before parsing %s, num entires is %d, and new inode is %d\n", buf, new_inode.data.directory_data.num_entries, inode_idx);
         free(buf);
         if (inode_idx == 0) {
             continue;
         }
-        printf("Writing dirent to %d: inode idx %d\n", reserved_inode_idx, inode_idx);
         new_inode.data.directory_data.direct_files[new_inode.data.directory_data.num_entries] = inode_idx;
         new_inode.data.directory_data.num_entries++;
     }
     closedir(d);
     inodes[reserved_inode_idx] = new_inode;
-    printf("For dir inode %d\n", reserved_inode_idx);
-    for (size_t i = 0; i < new_inode.data.directory_data.num_entries; i++) {
-        printf("entry %d is inode %d\n", i, new_inode.data.directory_data.direct_files[i]);
-    }
     return reserved_inode_idx;
 }
 
@@ -134,9 +128,10 @@ int main() {
     FILE *fs;
     fs = fopen(FS_OUT, "wb");
     if (fs == NULL) {
-        printf("Failed to open %s for writing\n", FS_OUT);
+        printf("[ERR] Failed to open %s for writing\n", FS_OUT);
         return 1;
     }
+    printf("[LOG] Writing filesystem to disk at %s\n", FS_OUT);
     fwrite(inodes, sizeof(struct inode), sizeof(inodes) / sizeof(struct inode), fs);
     fwrite(data_blocks, BLOCK_SIZE, NUM_BLOCKS - NUM_INODE_BLOCKS, fs);
     fclose(fs);

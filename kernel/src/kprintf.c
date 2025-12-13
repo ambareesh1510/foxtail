@@ -15,6 +15,9 @@ void kprint_next_line() {
                 VGA[y * VGA_WIDTH + x] = VGA[(y + 1) * VGA_WIDTH + x];
             }
         }
+        for (uint32_t x = 0; x < VGA_WIDTH; x++) {
+            VGA[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = 0;
+        }
     } else {
         cursor_row++;
     }
@@ -66,6 +69,21 @@ void kprint_uint32_dec(uint32_t value, char* buf) {
     }
 }
 
+void kprint(const char *str) {
+    while (*str != 0) {
+        if (*str == '\n') {
+            kprint_next_line();
+        } else {
+            vga_putch_at(*str, cursor_row, cursor_column, 0x07);
+            cursor_column++;
+            if (cursor_column >= VGA_WIDTH) {
+                kprint_next_line();
+            }
+        }
+        str++;
+    }
+}
+
 void kprintf(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -77,15 +95,15 @@ void kprintf(const char *fmt, ...) {
                 uint32_t val = va_arg(args, uint32_t);
                 char buf[11];
                 kprint_uint32_dec(val, buf);
-                kprintf(buf);
+                kprint(buf);
             } else if (*curr == 'x') {
                 uint32_t val = va_arg(args, uint32_t);
                 char buf[9];
                 kprint_uint32_hex(val, buf);
-                kprintf(buf);
+                kprint(buf);
             } else if (*curr == 's') {
                 char *val = va_arg(args, char *);
-                kprintf(val);
+                kprint(val);
             }
             format_spec = false;
         } else if (*curr == '%') {

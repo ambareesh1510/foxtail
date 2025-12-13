@@ -2,9 +2,10 @@
 #include "gdt.h"
 #include "vga.h"
 #include "paging.h"
-#include "kprintf.h"
 #include "fs.h"
+#include "kprintf.h"
 #include "util.h"
+#include "kstring.h"
 
 __attribute__((aligned(4096))) 
 __attribute__ ((section(".boot.data")))
@@ -31,95 +32,6 @@ kernel_main(void) {
     higher_half_entry();
 }
 
-struct inode *get_inode_at_idx(uint32_t idx) {
-    return (struct inode *) (fs + idx * sizeof(struct inode));
-}
-
-uint32_t strlen(const char *str) {
-    uint32_t len = 0;
-    while (str[len] != '\0') {
-        len++;
-    }
-    return len;
-}
-
-uint32_t strcmp(const char *a, const char *b) {
-    int i = 0;
-    for (;;) {
-        if (a[i] == '\0' || b[i] == '\0') {
-            if (a[i] == '\0' && b[i] == '\0') {
-                return 0;
-            }
-            return 1;
-        }
-        if (a[i] != b[i]) {
-            return 1;
-        }
-        i++;
-    }
-}
-
-struct inode *get_inode_by_path(
-    struct inode *base,
-    const char *path
-) {
-    if (base == 0) {
-        return base;
-    }
-    if (path[0] == '/') {
-        path++;
-    }
-    if (strlen(path) == 0) {
-        return base;
-    }
-    if (base->type == FT_FILE) {
-        return 0;
-    }
-    char path_buf[FILENAME_MAX_LEN] = {0};
-    uint32_t i = 0;
-    for (; path[i] != '/' && path[i] != '\0'; i++) {
-        path_buf[i] = path[i];
-    }
-    path_buf[i] = '\0';
-    struct inode *next = 0;
-    for (uint32_t j = 0; j < base->data.directory_data.num_entries; j++) {
-        struct inode *temp = get_inode_at_idx(base->data.directory_data.direct_files[j]);
-        if (strcmp(temp->name, path_buf) == 0) {
-            next = temp;
-            break;
-        }
-    }
-    return get_inode_by_path(next, path + i);
-}
-
-struct inode *get_root_inode() {
-    return get_inode_at_idx(0);
-}
-
-void tree(struct inode *base, uint32_t depth) {
-    if (base == 0) {
-        kprintf("Invalid inode\n");
-        return;
-    }
-    if (depth > 2) {
-        return;
-    }
-    if (depth > 0) {
-        for (uint32_t i = 0; i < depth - 1; i++) {
-            kprintf("   ");
-        }
-        kprintf("|- ");
-    }
-    if (base->type == FT_FILE) {
-        kprintf("%s\n", base->name);
-    } else {
-        kprintf("%s/\n", base->name);
-        for (uint32_t j = 0; j < base->data.directory_data.num_entries; j++) {
-            struct inode *next = get_inode_at_idx(base->data.directory_data.direct_files[j]);
-            tree(next, depth + 1);
-        }
-    }
-}
 
 void
 higher_half_entry() {
@@ -133,9 +45,16 @@ higher_half_entry() {
     // half.
     gdt_load();
     idt_load();
-    // TODO: this doesn't work if "hi/" doesn't have the trailing slash
-    tree(get_inode_by_path(get_root_inode(), "hi"), 0);
-    // tree(get_root_inode(), 0);
+
+    tree(get_root_inode(), 0);
+
+    char buf[10000] = {1};
+    struct inode *cfg_inode = get_inode_by_path(get_root_inode(), "hi/test.txt");
+    uint32_t read = fs_read_bytes(cfg_inode, 0, 8999, buf);
+    // kprintf("%s\n", buf);
+    kprintf("file size: %d\n", cfg_inode->data.file_data.size);
+    kprintf("read bytes: %d\n", read);
+    kprintf("strlen: %d\n", strlen(buf));
 
     // for (;;) {
     //     kprintf("Ticks: %d, kb: %x\n", ticks, (uint32_t) (unsigned char) kb_char);
