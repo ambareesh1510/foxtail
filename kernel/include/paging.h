@@ -7,6 +7,8 @@
 #define PGTBL_LEN PGDIR_LEN
 #define PGSIZE 0x1000
 
+#define PAGE_ROUND_DOWN(addr) (addr & ~(PGSIZE - 1))
+
 #define HIGHER_HALF_BASE 0xC0000000
 
 typedef uint32_t pgdir[PGDIR_LEN];
