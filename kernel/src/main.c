@@ -92,6 +92,14 @@ higher_half_entry() {
     gdt_load();
     idt_load();
 
+    __asm__ volatile (
+        "mov $0x12345678, %eax\n"
+        "mov $0x85, %ebx\n"
+        "mov $0x75, %ecx\n"
+        "mov $0x95, %edx\n"
+        "int $0x80"
+    );
+
     kprintf("%x\n", page_free_map_high[(UPPER_MEM_START / PGSIZE) / 32]);
     uint32_t allocated = alloc_page();
     kprintf("allocated page %x\n", allocated);
@@ -105,7 +113,7 @@ higher_half_entry() {
 
     tree(get_root_inode());
 
-    char buf[10000] = {1};
+    char buf[10000] = {0};
     struct inode *cfg_inode = get_inode_by_path(get_root_inode(), "hi/test.txt");
     uint32_t read = fs_read_bytes(cfg_inode, 0, 9999, buf);
     // kprintf("%s\n", buf);

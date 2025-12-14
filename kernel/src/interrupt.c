@@ -1,3 +1,4 @@
+#include "kprintf.h"
 #include "util.h"
 #include "interrupt.h"
 #include "io.h"
@@ -74,6 +75,28 @@ void keyboard_interrupt_handler(
     pic_send_eoi(1);
 }
 
+__attribute__((naked))
+void syscall_interrupt_handler(void) {
+    __asm__ volatile(
+        "pushal\n"
+        "push %edx\n"
+        "push %ecx\n"
+        "push %ebx\n"
+        "push %eax\n"
+        "call syscall_interrupt_handler_inner\n"
+        "pop %eax\n"
+        "pop %ebx\n"
+        "pop %ecx\n"
+        "pop %edx\n"
+        "popal\n"
+        "iret"
+    );
+}
+
+void syscall_interrupt_handler_inner(uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
+    kprintf("Syscall with eax=%x, ebx=%x, ecx=%x, edx=%x\n", eax, ebx, ecx, edx);
+}
+
 // * PIC configuration *
 
 // There are two PICs: one is the master and one is the slave. Each PIC can
@@ -145,6 +168,13 @@ idt_load() {
         (uint32_t) keyboard_interrupt_handler,
         0x08,
         IDT_FLAG_INTERRUPT_GATE
+    );
+
+    idt_write_entry(
+        0x80,
+        (uint32_t) syscall_interrupt_handler,
+        0x08,
+        0xEE
     );
 
     __asm__ volatile ("lidt %0" : : "m" (idt_desc));
