@@ -46,15 +46,16 @@ higher_half_entry() {
     gdt_load();
     idt_load();
 
-    tree(get_root_inode(), 0);
+    tree(get_root_inode());
 
     char buf[10000] = {1};
     struct inode *cfg_inode = get_inode_by_path(get_root_inode(), "hi/test.txt");
-    uint32_t read = fs_read_bytes(cfg_inode, 0, 8999, buf);
+    uint32_t read = fs_read_bytes(cfg_inode, 0, 9999, buf);
     // kprintf("%s\n", buf);
     kprintf("file size: %d\n", cfg_inode->data.file_data.size);
     kprintf("read bytes: %d\n", read);
     kprintf("strlen: %d\n", strlen(buf));
+    ls(get_root_inode());
 
     // for (;;) {
     //     kprintf("Ticks: %d, kb: %x\n", ticks, (uint32_t) (unsigned char) kb_char);

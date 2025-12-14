@@ -15,7 +15,8 @@ struct inode *get_inode_by_path(
 
 struct inode *get_root_inode();
 
-void tree(struct inode *base, uint32_t depth);
+void tree(struct inode *base);
+void ls(struct inode *base);
 
 uint32_t fs_read_bytes(struct inode *inode, uint32_t offset, uint32_t size, char *buf);
 

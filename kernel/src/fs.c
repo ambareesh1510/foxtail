@@ -48,14 +48,11 @@ struct inode *get_root_inode() {
     return get_inode_at_idx(0);
 }
 
-void tree(struct inode *base, uint32_t depth) {
+void tree_helper(struct inode *base, uint32_t depth) {
     if (base == 0) {
         kprintf("Invalid inode\n");
         return;
     }
-    // if (depth > 2) {
-    //     return;
-    // }
     if (depth > 0) {
         for (uint32_t i = 0; i < depth - 1; i++) {
             kprintf("   ");
@@ -68,9 +65,13 @@ void tree(struct inode *base, uint32_t depth) {
         kprintf("%s/\n", base->name);
         for (uint32_t j = 0; j < base->data.directory_data.num_entries; j++) {
             struct inode *next = get_inode_at_idx(base->data.directory_data.direct_files[j]);
-            tree(next, depth + 1);
+            tree_helper(next, depth + 1);
         }
     }
+}
+
+void tree(struct inode *base) {
+    tree_helper(base, 0);
 }
 
 /// Get the block address that holds byte `offset` of `inode`.
@@ -118,8 +119,7 @@ uint32_t fs_read_bytes(struct inode *inode, uint32_t offset, uint32_t size, char
         uint32_t block_index = get_block_from_inode_offset(inode, offset);
         memcpy(
             buf + buf_offset,
-            // Theoretically `offset % BLOCK_SIZE` should always be 0
-            fs + block_index * BLOCK_SIZE + offset % BLOCK_SIZE,
+            fs + block_index * BLOCK_SIZE,
             block_read_size
         );
         offset += block_read_size;
@@ -129,4 +129,27 @@ uint32_t fs_read_bytes(struct inode *inode, uint32_t offset, uint32_t size, char
         size -= BLOCK_SIZE;
     }
     return total_bytes_read;
+}
+
+void ls_entry(struct inode *entry) {
+    if (entry->type == FT_FILE) {
+        kprintf(
+            "F (%d bytes) %s\n",
+            entry->data.file_data.size,
+            entry->name
+        );
+    } else {
+        kprintf(
+            "D (%d entries) %s\n",
+            entry->data.directory_data.num_entries,
+            entry->name
+        );
+    }
+}
+
+void ls(struct inode *base) {
+    for (uint32_t j = 0; j < base->data.directory_data.num_entries; j++) {
+        struct inode *next = get_inode_at_idx(base->data.directory_data.direct_files[j]);
+        ls_entry(next);
+    }
 }
