@@ -33,7 +33,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.s
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(KERNEL): $(OBJS) link.ld
+$(KERNEL): fs $(OBJS) link.ld
 	$(LD) $(LDFLAGS) -o $(KERNEL) $(OBJS)
 
 iso_dir: $(KERNEL)
@@ -55,6 +55,7 @@ clean:
 	rm -f $(KERNEL) $(ISO)
 	rm -rf $(ISO_DIR)
 	rm -rf $(OBJ_DIR)
+	rm -r fs.bin
 
 prepare:
 	mkdir -p $(OBJ_DIR)
