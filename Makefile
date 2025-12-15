@@ -20,7 +20,7 @@ LDFLAGS = -m elf_i386 -nostdlib -T link.ld
 
 .PHONY: all clean run iso_dir prepare_iso prepare
 
-all: prepare $(ISO)
+all: prepare fs $(ISO)
 
 echo:
 	echo $(OBJS)

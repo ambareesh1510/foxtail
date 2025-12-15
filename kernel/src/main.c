@@ -114,7 +114,7 @@ higher_half_entry() {
     tree(get_root_inode());
 
     char buf[10000] = {0};
-    struct inode *cfg_inode = get_inode_by_path(get_root_inode(), "hi/test.txt");
+    struct inode *cfg_inode = get_inode_by_path(get_root_inode(), "hi/test2.txt");
     uint32_t read = fs_read_bytes(cfg_inode, 0, 9999, buf);
     // kprintf("%s\n", buf);
     kprintf("file size: %d\n", cfg_inode->data.file_data.size);

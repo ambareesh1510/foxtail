@@ -75,26 +75,26 @@ void keyboard_interrupt_handler(
     pic_send_eoi(1);
 }
 
+struct syscall_registers {
+    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
+};
+
 __attribute__((naked))
 void syscall_interrupt_handler(void) {
     __asm__ volatile(
         "pushal\n"
-        "push %edx\n"
-        "push %ecx\n"
-        "push %ebx\n"
-        "push %eax\n"
+        // Push the address of the syscall_registers struct that we just
+        // constructed on the stack
+        "push %esp\n"
         "call syscall_interrupt_handler_inner\n"
-        "pop %eax\n"
-        "pop %ebx\n"
-        "pop %ecx\n"
-        "pop %edx\n"
+        "add $4, %esp\n"
         "popal\n"
         "iret"
     );
 }
 
-void syscall_interrupt_handler_inner(uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
-    kprintf("Syscall with eax=%x, ebx=%x, ecx=%x, edx=%x\n", eax, ebx, ecx, edx);
+void syscall_interrupt_handler_inner(struct syscall_registers *s) {
+    kprintf("Syscall with eax = %x, ebx = %x, ecx = %x, edx = %x\n", s->eax, s->ebx, s->ecx, s->edx);
 }
 
 // * PIC configuration *
