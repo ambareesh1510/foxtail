@@ -1,12 +1,11 @@
 #include "exec.h"
 #include "elf_defs.h"
 #include "fs.h"
-#include "kprintf.h"
 #include "paging.h"
 #include "pgalloc.h"
 #include "kstring.h"
 
-enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl, uint32_t *kernel_pgdir) {
+enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl) {
     if (prog->type == FT_DIRECTORY) {
         return EXEC_ERROR_FT_DIRECTORY;
     }
@@ -50,20 +49,17 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl, uint32_t *kern
             // If there's no page table, allocate one
             if (new_pgdir[seg_addr >> 22] == 0) {
                 uint32_t new_page_table_addr = alloc_page() * PGSIZE;
-                new_pgdir[seg_addr >> 22] = (new_page_table_addr & 0xfffff000) | 0x3;
+                new_pgdir[seg_addr >> 22] = (new_page_table_addr & 0xfffff000) | 0x7;
                 pgtbl_addr = new_page_table_addr;
             } else {
                 pgtbl_addr = new_pgdir[seg_addr >> 22] & 0xfffff000;
             }
-            kprintf("Kernel pgtbl addr = %x\n", kernel_pgtbl);
             kernel_pgtbl[PGTBL_LEN - 1] = pgtbl_addr | 0x3;
-            // __asm__ volatile ("invlpg (%0)" : : "r" (temp_page_ptr) : "memory");
             __asm__ volatile (
                 "mov %cr3, %eax\n"
                 "mov %eax, %cr3\n"
             );
-            temp_page_ptr[(seg_addr >> 12) & 0x000003FF] = new_page_addr | 0x3;
-            kprintf("accessing %x\n", &temp_page_ptr[(seg_addr >> 12) & 0x000003FF]);
+            temp_page_ptr[(seg_addr >> 12) & 0x000003FF] = new_page_addr | 0x7;
         }
 
     }
@@ -75,7 +71,7 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl, uint32_t *kern
     // If there's no page table, allocate one
     if (new_pgdir[stack_vaddr_low >> 22] == 0) {
         uint32_t new_stack_page_table_addr = alloc_page() * PGSIZE;
-        new_pgdir[stack_vaddr_low >> 22] = (new_stack_page_table_addr & 0xfffff000) | 0x3;
+        new_pgdir[stack_vaddr_low >> 22] = (new_stack_page_table_addr & 0xfffff000) | 0x7;
         stack_pgtbl_addr = new_stack_page_table_addr;
     } else {
         stack_pgtbl_addr = new_pgdir[stack_vaddr_low >> 22] & 0xfffff000;
@@ -85,9 +81,9 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl, uint32_t *kern
         "mov %cr3, %eax\n"
         "mov %eax, %cr3\n"
     );
-    temp_page_ptr[PGTBL_LEN - 1] = stack_addr | 0x3;
+    temp_page_ptr[PGTBL_LEN - 1] = stack_addr | 0x7;
     
-    new_pgdir[HIGHER_HALF_BASE >> 22] = ((uint32_t) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) & 0xfffff000) | 0x3;
+    new_pgdir[HIGHER_HALF_BASE >> 22] = ((uint32_t) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) & 0xfffff000) | 0x7;
     
     // Copy the new pgdir into newly allocated page
     uint32_t new_pgdir_addr = alloc_page() * PGSIZE;
@@ -96,7 +92,6 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl, uint32_t *kern
         "mov %cr3, %eax\n"
         "mov %eax, %cr3\n"
     );
-    kprintf("memcpy to %x from %x\n", temp_page_ptr, new_pgdir);
     memcpy((char *) temp_page_ptr, (char *) new_pgdir, PGSIZE);
     kernel_pgtbl[PGTBL_LEN - 1] = (uint32_t) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) | 0x3;
     
@@ -124,16 +119,28 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl, uint32_t *kern
         fs_read_bytes(prog, program_header.offset, program_header.memsz, (char *) program_header.vaddr);
     }
 
-    // Update stack pointer to process stack
-    __asm__ volatile (
-        "mov %0, %%esp\n"
-        : : "r"(HIGHER_HALF_BASE - 1)
-    );
-
-    // Jump to process entry point
+    // Ring 3 transition
     __asm__ volatile(
-        "jmp *%0\n"
-        : : "r"(elf_header.entry)
+        "cli\n"
+        
+        // User data segment is 0x20; OR with Requested Privilege Level (RPL = 0x3)
+        "mov $0x23, %%ax\n"
+        "mov %%ax, %%ds\n"
+        "mov %%ax, %%es\n"
+        "mov %%ax, %%fs\n"
+        "mov %%ax, %%gs\n"
+        
+        "pushl $0x23\n"              // User data segment
+        "pushl %0\n"                 // eip (user stack)
+        "pushf\n"                    // eflags
+        "popl %%eax\n"
+        "orl $0x200, %%eax\n"        // Enable interrupts by setting appropriate flag
+        "pushl %%eax\n"              // Push modified eflags
+        "pushl $0x1B\n"              // User code segment
+        "pushl %1\n"                 // esp
+        
+        "iret\n"                     // iret to ring 3
+        : : "r"(HIGHER_HALF_BASE), "r"(elf_header.entry) : "eax"
     );
 
     return EXEC_SUCCESS;

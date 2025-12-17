@@ -9,6 +9,6 @@ enum exec_status {
     EXEC_ERROR_INVALID_MAGIC,
 };
 
-enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl, uint32_t *kernel_pgdir);
+enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl);
 
 #endif /* EXEC_H */
