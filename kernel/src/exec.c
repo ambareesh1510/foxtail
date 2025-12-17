@@ -1,9 +1,11 @@
 #include "exec.h"
 #include "elf_defs.h"
 #include "fs.h"
+#include "fs_defs.h"
 #include "paging.h"
 #include "pgalloc.h"
 #include "kstring.h"
+#include "proc.h"
 
 enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl) {
     if (prog->type == FT_DIRECTORY) {
@@ -16,6 +18,9 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl) {
     if (elf_header.magic != ELF_MAGIC) {
         return EXEC_ERROR_INVALID_MAGIC;
     }
+
+    struct proc *new_proc = alloc_proc();
+    memcpy(new_proc->name, prog->name, FILENAME_MAX_LEN);
 
     // Use the last entry of kernel_pgtbl as a temporary buffer.
     uint32_t *temp_page_ptr = (uint32_t *) (HIGHER_HALF_BASE + PGSIZE * (PGDIR_LEN - 1));

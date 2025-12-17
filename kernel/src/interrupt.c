@@ -1,4 +1,5 @@
 #include "kprintf.h"
+#include "proc.h"
 #include "util.h"
 #include "interrupt.h"
 #include "io.h"
@@ -60,8 +61,71 @@ inline void pic_send_eoi(uint8_t irq) {
 
 __attribute__ ((interrupt))
 void timer_interrupt_handler(
-    __attribute__ ((unused)) struct interrupt_frame *frame
+    struct interrupt_frame *frame
 ) {
+    if (!proc_exists) {
+        goto timer_handler_default;
+    }
+    struct proc *curr_proc = ptable + scheduler_proc_index;
+    // Save registers in interrupt frame
+    curr_proc->registers.esp = frame->sp;
+    curr_proc->registers.eip = frame->ip;
+    curr_proc->registers.cs = frame->cs;
+    curr_proc->registers.ss = frame->ss;
+    curr_proc->registers.eflags = frame->flags;
+
+
+    // Save general purpose registers
+    __asm__ volatile (
+        "mov %%eax, %0\n"
+        "mov %%ebx, %1\n"
+        "mov %%ecx, %2\n"
+        "mov %%edx, %3\n"
+        "mov %%esi, %4\n"
+        "mov %%edi, %5\n"
+        "mov %%ebp, %6\n"
+        :
+        "=m"(curr_proc->registers.eax),
+        "=m"(curr_proc->registers.ebx),
+        "=m"(curr_proc->registers.ecx),
+        "=m"(curr_proc->registers.edx),
+        "=m"(curr_proc->registers.esi),
+        "=m"(curr_proc->registers.edi),
+        "=m"(curr_proc->registers.ebp)
+        : : "memory"
+    );
+    __asm__ volatile ("pushal");
+    scheduler();
+    __asm__ volatile ("popal");
+
+    // Restore general purpose registers
+    __asm__ volatile (
+        "mov %0, %%eax\n"
+        "mov %1, %%ebx\n"
+        "mov %2, %%ecx\n"
+        "mov %3, %%edx\n"
+        "mov %4, %%esi\n"
+        "mov %5, %%edi\n"
+        "mov %6, %%ebp\n"
+        : :
+        "m"(curr_proc->registers.eax),
+        "m"(curr_proc->registers.ebx),
+        "m"(curr_proc->registers.ecx),
+        "m"(curr_proc->registers.edx),
+        "m"(curr_proc->registers.esi),
+        "m"(curr_proc->registers.edi),
+        "m"(curr_proc->registers.ebp)
+    );
+
+    curr_proc = ptable + scheduler_proc_index;
+    // Save registers in interrupt frame
+    frame->sp = curr_proc->registers.esp;
+    frame->ip = curr_proc->registers.eip;
+    frame->cs = curr_proc->registers.cs;
+    frame->ss = curr_proc->registers.ss;
+    frame->flags = curr_proc->registers.eflags;
+
+timer_handler_default:
     ticks++;
     pic_send_eoi(0);
 }
