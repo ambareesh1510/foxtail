@@ -8,7 +8,7 @@ void
 paging_setup(uint32_t *kernel_pgdir, uint32_t *kernel_id_pgtbl) {
   // Identity page the first megabyte.
   uint32_t addr = 0x0;
-  for (uint32_t i = 0; i < PGTBL_LEN; i++) {
+  for (uint32_t i = 0; i < PGTBL_LEN - 1; i++) {
     kernel_id_pgtbl[i] = (addr & 0xFFFFF000) | 0x3;
     addr += PGSIZE;
   }

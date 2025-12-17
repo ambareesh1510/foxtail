@@ -1,3 +1,4 @@
+#include "exec.h"
 #include "interrupt.h"
 #include "gdt.h"
 #include "vga.h"
@@ -75,15 +76,41 @@ kernel_main(void) {
         "add $0xC0000000, %ebp\n"
     );
 
-    higher_half_entry();
+
+    // __asm__ volatile (
+    //     "calll %0\n"
+    //     : : "r"(higher_half_entry)
+    // );
+    __asm__ volatile(
+        "jmp *%0\n"
+        : : "r"((uint32_t) higher_half_entry)
+    );
+    // higher_half_entry();
+//     void (*hh_entry)(void) =
+//     (void (*)(void))((uint32_t)higher_half_entry + HIGHER_HALF_BASE);
+//
+// hh_entry();
+
 }
 
 
 void
 higher_half_entry() {
+    uint32_t esp, eip;
+    __asm__ volatile("movl %%esp, %0" : "=r"(esp));
+    __asm__ volatile("call 1f; 1: pop %0" : "=r"(eip));
+    
+    kprintf("ESP: %x (should be >0xC0000000)\n", esp);
+    kprintf("EIP: %x (should be >0xC0000000)\n", eip);
+    kprintf("Function addr: %x\n", (uint32_t)higher_half_entry);
+
     // Unmap the identity mapping of the lower half.
     kernel_pgdir[0] = 0;
     __asm__ volatile ("invlpg [0]");
+    __asm__ volatile (
+        "mov %cr3, %eax\n"
+        "mov %eax, %cr3\n"
+    );
 
     vga_clear();
 
@@ -91,6 +118,14 @@ higher_half_entry() {
     // half.
     gdt_load();
     idt_load();
+
+    struct inode *exe_inode = get_inode_by_path(get_root_inode(), "test");
+    // kprintf("passign in %x\n", kernel_id_pgtbl + HIGHER_HALF_BASE);
+    exec(
+        exe_inode,
+        (uint32_t *) ((char *) kernel_id_pgtbl + HIGHER_HALF_BASE),
+        (uint32_t *) ((char *) kernel_pgdir + HIGHER_HALF_BASE)
+    );
 
     __asm__ volatile (
         "mov $0x12345678, %eax\n"
@@ -100,27 +135,27 @@ higher_half_entry() {
         "int $0x80"
     );
 
-    kprintf("%x\n", page_free_map_high[(UPPER_MEM_START / PGSIZE) / 32]);
-    uint32_t allocated = alloc_page();
-    kprintf("allocated page %x\n", allocated);
-    kprintf("%x\n", page_free_map_high[(UPPER_MEM_START / PGSIZE) / 32]);
-    bool res = free_page(allocated);
-    if (res) {
-        kprintf("Successfully deallocated\n");
-    } else {
-        kprintf("Failed to deallocate\n");
-    }
-
-    tree(get_root_inode());
-
-    char buf[10000] = {0};
-    struct inode *cfg_inode = get_inode_by_path(get_root_inode(), "hi/test2.txt");
-    uint32_t read = fs_read_bytes(cfg_inode, 0, 9999, buf);
-    // kprintf("%s\n", buf);
-    kprintf("file size: %d\n", cfg_inode->data.file_data.size);
-    kprintf("read bytes: %d\n", read);
-    kprintf("strlen: %d\n", strlen(buf));
-    ls(get_root_inode());
+    // kprintf("%x\n", page_free_map_high[(UPPER_MEM_START / PGSIZE) / 32]);
+    // uint32_t allocated = alloc_page();
+    // kprintf("allocated page %x\n", allocated);
+    // kprintf("%x\n", page_free_map_high[(UPPER_MEM_START / PGSIZE) / 32]);
+    // bool res = free_page(allocated);
+    // if (res) {
+    //     kprintf("Successfully deallocated\n");
+    // } else {
+    //     kprintf("Failed to deallocate\n");
+    // }
+    //
+    // tree(get_root_inode());
+    //
+    // char buf[10000] = {0};
+    // struct inode *cfg_inode = get_inode_by_path(get_root_inode(), "hi/test2.txt");
+    // uint32_t read = fs_read_bytes(cfg_inode, 0, 9999, buf);
+    // // kprintf("%s\n", buf);
+    // kprintf("file size: %d\n", cfg_inode->data.file_data.size);
+    // kprintf("read bytes: %d\n", read);
+    // kprintf("strlen: %d\n", strlen(buf));
+    // ls(get_root_inode());
 
     // for (;;) {
     //     kprintf("Ticks: %d, kb: %x\n", ticks, (uint32_t) (unsigned char) kb_char);

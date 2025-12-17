@@ -11,9 +11,6 @@
 
 #define HIGHER_HALF_BASE 0xC0000000
 
-typedef uint32_t pgdir[PGDIR_LEN];
-typedef uint32_t pgtbl[PGTBL_LEN];
-
 // void paging_setup();
 void 
 __attribute__ ((section(".boot.text")))

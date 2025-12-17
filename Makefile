@@ -1,40 +1,58 @@
+# Kernel definitions
+KERNEL_SRC_DIR = kernel/src
+KERNEL_INCLUDE_DIR = kernel/include
+KERNEL_OBJ_DIR = kernel/bin
 
-SRC_DIR = kernel/src
-INCLUDE_DIR = kernel/include
-OBJ_DIR = bin
-
-SRCS_C = $(wildcard $(SRC_DIR)/*.c)
-SRCS_S = $(wildcard $(SRC_DIR)/*.s)
-SRCS = $(SRCS_C) $(SRCS_S)
-OBJS = $(patsubst $(SRC_DIR)/%, $(OBJ_DIR)/%, $(SRCS_C:.c=.o) $(SRCS_S:.s=.o))
+KERNEL_SRCS_C = $(wildcard $(KERNEL_SRC_DIR)/*.c)
+KERNEL_SRCS_S = $(wildcard $(KERNEL_SRC_DIR)/*.s)
+KERNEL_OBJS = $(patsubst $(KERNEL_SRC_DIR)/%, $(KERNEL_OBJ_DIR)/%, $(KERNEL_SRCS_C:.c=.o) $(KERNEL_SRCS_S:.s=.o))
 
 KERNEL = kernel.elf
 
 ISO_DIR = isodir
 ISO = os.iso
 
+# User program definitions
+USER_SRC_DIR = user/src
+USER_INCLUDE_DIR = user/include
+USER_OBJ_DIR = user/obj
+USER_EXE_DIR = user/bin
+
+USER_SRCS_C = $(wildcard $(USER_SRC_DIR)/*.c)
+USER_OBJS = $(USER_SRCS_C:$(USER_SRC_DIR)/%.c=$(USER_OBJ_DIR)/%.o)
+USER_EXES = $(USER_SRCS_C:$(USER_SRC_DIR)/%.c=$(USER_EXE_DIR)/%)
+
+# mkfs definitions
+MKFS_FS_DIR = mkfs/fs
+MKFS_SRC_DIR = mkfs/src
+MKFS_BIN_DIR = mkfs/bin
+MKFS_FS_OUT_FILE = fs.bin
+
+# Compiler/linker options
 CC = clang
 LD = ld.lld
-CFLAGS = -target i386-elf -std=c23 -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -Wpedantic -nostdlib -mno-sse -I $(INCLUDE_DIR)
+CFLAGS = -target i386-elf -std=c23 -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -Wpedantic -nostdlib -mno-sse -I $(KERNEL_INCLUDE_DIR)
+USER_CFLAGS = -target i386-elf -std=c23 -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -Wpedantic -nostdlib -mno-sse -I $(USER_INCLUDE_DIR)
 LDFLAGS = -m elf_i386 -nostdlib -T link.ld
+USER_LDFLAGS = -m elf_i386 -nostdlib -T user.ld
 
 .PHONY: all clean run iso_dir prepare_iso prepare
 
 all: prepare fs $(ISO)
 
 echo:
-	echo $(OBJS)
+	echo $(KERNEL_OBJS)
 
 # Rule for assembling .s files into .o files
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.s
+$(KERNEL_OBJ_DIR)/%.o: $(KERNEL_SRC_DIR)/%.s
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Rule for compiling .c files into .o files
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+$(KERNEL_OBJ_DIR)/%.o: $(KERNEL_SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(KERNEL): fs $(OBJS) link.ld
-	$(LD) $(LDFLAGS) -o $(KERNEL) $(OBJS)
+$(KERNEL): fs $(KERNEL_OBJS) link.ld
+	$(LD) $(LDFLAGS) -o $(KERNEL) $(KERNEL_OBJS)
 
 iso_dir: $(KERNEL)
 	rm -rf $(ISO_DIR)
@@ -54,14 +72,29 @@ kernel: $(KERNEL)
 clean:
 	rm -f $(KERNEL) $(ISO)
 	rm -rf $(ISO_DIR)
-	rm -rf $(OBJ_DIR)
-	rm -r fs.bin
+	rm -rf $(KERNEL_OBJ_DIR)
+	rm -rf $(USER_OBJ_DIR) $(USER_EXE_DIR)
+	rm -f $(MKFS_FS_OUT_FILE)
 
 prepare:
-	mkdir -p $(OBJ_DIR)
+	mkdir -p $(KERNEL_OBJ_DIR)
 
-fs:
-	rm -f fs.bin
-	mkdir -p mkfs/bin
-	$(CC) -std=c23 -Ikernel/include/ mkfs/src/main.c -o mkfs/bin/mkfs -D_DEFAULT_SOURCE
-	mkfs/bin/mkfs
+prepare_user:
+	mkdir -p $(USER_OBJ_DIR)
+	mkdir -p $(USER_EXE_DIR)
+
+user: prepare_user $(USER_EXES)
+
+$(USER_EXE_DIR)/%: $(USER_OBJ_DIR)/%.o
+	$(LD) $(USER_LDFLAGS) -o $@ $<
+
+$(USER_OBJ_DIR)/%.o: $(USER_SRC_DIR)/%.c
+	$(CC) $(USER_CFLAGS) -c $< -o $@
+
+fs: user
+	rm -f $(MKFS_FS_OUT_FILE)
+	mkdir -p $(MKFS_FS_DIR)
+	cp $(USER_EXE_DIR)/* $(MKFS_FS_DIR)
+	mkdir -p $(MKFS_BIN_DIR)
+	$(CC) -std=c23 -I$(KERNEL_INCLUDE_DIR) $(MKFS_SRC_DIR)/main.c -o $(MKFS_BIN_DIR)/mkfs -D_DEFAULT_SOURCE
+	$(MKFS_BIN_DIR)/mkfs
