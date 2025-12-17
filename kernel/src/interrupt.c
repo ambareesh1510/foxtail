@@ -3,6 +3,7 @@
 #include "util.h"
 #include "interrupt.h"
 #include "io.h"
+#include "syscall.h"
 #include "vga.h"
 
 char kb_char;
@@ -84,6 +85,8 @@ void timer_interrupt_handler(
         "mov %%esi, %4\n"
         "mov %%edi, %5\n"
         "mov %%ebp, %6\n"
+        "mov %%cr3, %%eax\n"
+        "mov %%eax, %7\n"
         :
         "=m"(curr_proc->registers.eax),
         "=m"(curr_proc->registers.ebx),
@@ -91,7 +94,8 @@ void timer_interrupt_handler(
         "=m"(curr_proc->registers.edx),
         "=m"(curr_proc->registers.esi),
         "=m"(curr_proc->registers.edi),
-        "=m"(curr_proc->registers.ebp)
+        "=m"(curr_proc->registers.ebp),
+        "=m"(curr_proc->cr3)
         : : "memory"
     );
     __asm__ volatile ("pushal");
@@ -101,13 +105,16 @@ void timer_interrupt_handler(
     // Restore general purpose registers
     __asm__ volatile (
         "mov %0, %%eax\n"
-        "mov %1, %%ebx\n"
-        "mov %2, %%ecx\n"
-        "mov %3, %%edx\n"
-        "mov %4, %%esi\n"
-        "mov %5, %%edi\n"
-        "mov %6, %%ebp\n"
+        "mov %%eax, %%cr3\n"
+        "mov %1, %%eax\n"
+        "mov %2, %%ebx\n"
+        "mov %3, %%ecx\n"
+        "mov %4, %%edx\n"
+        "mov %5, %%esi\n"
+        "mov %6, %%edi\n"
+        "mov %7, %%ebp\n"
         : :
+        "m"(curr_proc->cr3),
         "m"(curr_proc->registers.eax),
         "m"(curr_proc->registers.ebx),
         "m"(curr_proc->registers.ecx),
@@ -130,35 +137,81 @@ timer_handler_default:
     pic_send_eoi(0);
 }
 
+// Source - https://stackoverflow.com/a
+// Posted by jonathan
+// Retrieved 2025-12-17, License - CC BY-SA 4.0
+
+char kbd_US [128] =
+{
+    0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',   
+  '\t', /* <-- Tab */
+  'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',     
+    0, /* <-- control key */
+  'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',  0, '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/',   0,
+  '*',
+    0,  /* Alt */
+  ' ',  /* Space bar */
+    0,  /* Caps lock */
+    0,  /* 59 - F1 key ... > */
+    0,   0,   0,   0,   0,   0,   0,   0,
+    0,  /* < ... F10 */
+    0,  /* 69 - Num lock*/
+    0,  /* Scroll Lock */
+    0,  /* Home key */
+    0,  /* Up Arrow */
+    0,  /* Page Up */
+  '-',
+    0,  /* Left Arrow */
+    0,
+    0,  /* Right Arrow */
+  '+',
+    0,  /* 79 - End key*/
+    0,  /* Down Arrow */
+    0,  /* Page Down */
+    0,  /* Insert Key */
+    0,  /* Delete Key */
+    0,   0,   0,
+    0,  /* F11 Key */
+    0,  /* F12 Key */
+    0,  /* All other keys are undefined */
+};
+
+
+char input_buffer[INPUT_BUFFER_LEN] = {0};
+uint32_t input_buffer_write_ptr = 0;
+uint32_t input_buffer_read_ptr = 0;
+bool input_buffer_nonempty = false;
+
 __attribute__ ((interrupt))
 void keyboard_interrupt_handler(
     __attribute__ ((unused)) struct interrupt_frame *frame
 ) {
     uint8_t scancode = inb(0x60);
     kb_char = scancode;
+    if (kbd_US[scancode] != 0) {
+        input_buffer[input_buffer_write_ptr] = kbd_US[scancode];
+        input_buffer_write_ptr = (input_buffer_write_ptr + 1) % INPUT_BUFFER_LEN;
+        input_buffer_nonempty = true;
+    }
     pic_send_eoi(1);
 }
 
-struct syscall_registers {
-    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
-};
-
 __attribute__((naked))
 void syscall_interrupt_handler(void) {
-    __asm__ volatile(
-        "pushal\n"
-        // Push the address of the syscall_registers struct that we just
-        // constructed on the stack
-        "push %esp\n"
-        "call syscall_interrupt_handler_inner\n"
-        "add $4, %esp\n"
-        "popal\n"
-        "iret"
-    );
-}
-
-void syscall_interrupt_handler_inner(struct syscall_registers *s) {
-    kprintf("Syscall with eax = %x, ebx = %x, ecx = %x, edx = %x\n", s->eax, s->ebx, s->ecx, s->edx);
+  __asm__ volatile(
+      // TODO: we disable interrupts during syscalls... this is BAD! figure out
+      // how to allow nested interrupts (probably use a separate kernel stack
+      // per process -- this should be an easy fix)
+      "cli\n"
+      "pushal\n"
+      // Push the address of the syscall_registers struct that we just
+      // constructed on the stack
+      "push %esp\n"
+      "call syscall_interrupt_handler_inner\n"
+      "add $4, %esp\n"
+      "popal\n"
+      "sti\n"
+      "iret");
 }
 
 // * PIC configuration *

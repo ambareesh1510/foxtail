@@ -46,7 +46,7 @@ void scheduler() {
         if (ptable[i].present) {
             // struct proc proc = ptable[i];
             scheduler_proc_index = i;
-            kprintf("Scheduling process %d!\n", i);
+            // kprintf("Scheduling process %d!\n", i);
             return;
             // Restore all registers from proc and call iret
         }
