@@ -67,6 +67,26 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl, uint32_t *kern
         }
 
     }
+
+    // Allocate a stack and set up stack pointer
+    uint32_t stack_addr = alloc_page() * PGSIZE;
+    uint32_t stack_pgtbl_addr;
+    uint32_t stack_vaddr_low = HIGHER_HALF_BASE - PGSIZE;
+    // If there's no page table, allocate one
+    if (new_pgdir[stack_vaddr_low >> 22] == 0) {
+        uint32_t new_stack_page_table_addr = alloc_page() * PGSIZE;
+        new_pgdir[stack_vaddr_low >> 22] = (new_stack_page_table_addr & 0xfffff000) | 0x3;
+        stack_pgtbl_addr = new_stack_page_table_addr;
+    } else {
+        stack_pgtbl_addr = new_pgdir[stack_vaddr_low >> 22] & 0xfffff000;
+    }
+    kernel_pgtbl[PGTBL_LEN - 1] = stack_pgtbl_addr | 0x3;
+    __asm__ volatile (
+        "mov %cr3, %eax\n"
+        "mov %eax, %cr3\n"
+    );
+    temp_page_ptr[PGTBL_LEN - 1] = stack_addr | 0x3;
+    
     new_pgdir[HIGHER_HALF_BASE >> 22] = ((uint32_t) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) & 0xfffff000) | 0x3;
     
     // Copy the new pgdir into newly allocated page
@@ -92,6 +112,7 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl, uint32_t *kern
         : "%eax"
     );
 
+    // Copy each segment into memory
     for (uint32_t i = 0; i < elf_header.phnum; i++) {
         struct program_header program_header;
         fs_read_bytes(
@@ -103,6 +124,13 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl, uint32_t *kern
         fs_read_bytes(prog, program_header.offset, program_header.memsz, (char *) program_header.vaddr);
     }
 
+    // Update stack pointer to process stack
+    __asm__ volatile (
+        "mov %0, %%esp\n"
+        : : "r"(HIGHER_HALF_BASE - 1)
+    );
+
+    // Jump to process entry point
     __asm__ volatile(
         "jmp *%0\n"
         : : "r"(elf_header.entry)
