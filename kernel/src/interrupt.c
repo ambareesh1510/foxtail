@@ -189,7 +189,11 @@ void keyboard_interrupt_handler(
     uint8_t scancode = inb(0x60);
     kb_char = scancode;
     if (kbd_US[scancode] != 0) {
-        input_buffer[input_buffer_write_ptr] = kbd_US[scancode];
+        char c = kbd_US[scancode];
+        input_buffer[input_buffer_write_ptr] = c;
+        __asm__ volatile ("pushal");
+        kprint_char(c);
+        __asm__ volatile ("popal");
         input_buffer_write_ptr = (input_buffer_write_ptr + 1) % INPUT_BUFFER_LEN;
         input_buffer_nonempty = true;
     }

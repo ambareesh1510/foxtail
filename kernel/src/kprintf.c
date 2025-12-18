@@ -69,17 +69,21 @@ void kprint_uint32_dec(uint32_t value, char* buf) {
     }
 }
 
+void kprint_char(char c) {
+    if (c == '\n') {
+        kprint_next_line();
+    } else {
+        vga_putch_at(c, cursor_row, cursor_column, 0x07);
+        cursor_column++;
+        if (cursor_column >= VGA_WIDTH) {
+            kprint_next_line();
+        }
+    }
+}
+
 void kprint(const char *str) {
     while (*str != 0) {
-        if (*str == '\n') {
-            kprint_next_line();
-        } else {
-            vga_putch_at(*str, cursor_row, cursor_column, 0x07);
-            cursor_column++;
-            if (cursor_column >= VGA_WIDTH) {
-                kprint_next_line();
-            }
-        }
+        kprint_char(*str);
         str++;
     }
 }

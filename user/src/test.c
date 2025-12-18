@@ -18,14 +18,14 @@ void _start() {
             "r"(buf), "r"(9)
             : "eax", "ebx", "ecx"
         );
-        __asm__ volatile (
-            // "mov $0x0, %%eax\n"
-            // "mov %0, %%ebx\n"
-            "int $0x80"
-            : :
-            "a"(0),
-            "b"(buf)
-            // : "eax", "ebx"
-        );
+        // __asm__ volatile (
+        //     // "mov $0x0, %%eax\n"
+        //     // "mov %0, %%ebx\n"
+        //     "int $0x80"
+        //     : :
+        //     "a"(0),
+        //     "b"(buf)
+        //     // : "eax", "ebx"
+        // );
     };
 }
