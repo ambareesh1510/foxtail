@@ -2,12 +2,13 @@
 #include "elf_defs.h"
 #include "fs.h"
 #include "fs_defs.h"
+#include "gdt.h"
 #include "paging.h"
 #include "pgalloc.h"
 #include "kstring.h"
 #include "proc.h"
 
-enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl) {
+enum exec_status exec(struct inode *prog) {
     if (prog->type == FT_DIRECTORY) {
         return EXEC_ERROR_FT_DIRECTORY;
     }
@@ -25,6 +26,7 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl) {
     // TODO: allocate argc, argv
 
     // Use the last entry of kernel_pgtbl as a temporary buffer.
+    uint32_t *kernel_pgtbl = (uint32_t *) ((char *) kernel_id_pgtbl + HIGHER_HALF_BASE);
     uint32_t *temp_page_ptr = (uint32_t *) (HIGHER_HALF_BASE + PGSIZE * (PGDIR_LEN - 1));
     
     uint32_t new_pgdir[PGDIR_LEN] = {0};
@@ -73,6 +75,7 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl) {
 
     // Allocate a stack and set up stack pointer
     uint32_t stack_addr = alloc_page() * PGSIZE;
+    uint32_t kernel_stack_addr = alloc_page() * PGSIZE;
     uint32_t stack_pgtbl_addr;
     uint32_t stack_vaddr_low = HIGHER_HALF_BASE - PGSIZE;
     // If there's no page table, allocate one
@@ -89,6 +92,8 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl) {
         "mov %eax, %cr3\n"
     );
     temp_page_ptr[PGTBL_LEN - 1] = stack_addr | 0x7;
+    temp_page_ptr[PGTBL_LEN - 2] = kernel_stack_addr | 0x3;
+    new_proc->kernel_stack = kernel_stack_addr;
     
     new_pgdir[HIGHER_HALF_BASE >> 22] = ((uint32_t) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) & 0xfffff000) | 0x7;
     
@@ -127,6 +132,7 @@ enum exec_status exec(struct inode *prog, uint32_t *kernel_pgtbl) {
     }
 
     // Ring 3 transition
+    tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
     __asm__ volatile(
         "cli\n"
         

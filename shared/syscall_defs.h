@@ -4,6 +4,7 @@
 enum syscall_code {
     SYS_WRITE,
     SYS_READ,
+    SYS_SPAWN_PROC,
 };
 
 #endif /* SYSCALL_DEFS_H */

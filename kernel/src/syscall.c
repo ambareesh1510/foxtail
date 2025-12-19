@@ -45,9 +45,16 @@ void sys_read(struct syscall_registers *s) {
         }
     }
     s->ebx = 0;
-    // if (count != 0) 
-    //     kprintf("read %d\n", count);
     s->ecx = count;
+}
+
+// Spawns a new process from the file path specified by ebx.
+void sys_spawn_proc(struct syscall_registers *s) {
+    if (!is_valid_user_addr(s->ebx)) {
+        s->ebx = -1;
+        return;
+    }
+    // TODO: unfinished!
 }
 
 void syscall_interrupt_handler_inner(struct syscall_registers *s) {

@@ -21,6 +21,8 @@ struct proc {
     uint32_t cr3;
     struct saved_registers registers;
     char name[FILENAME_MAX_LEN];
+    // Physical address of the kernel stack. Unused for now
+    uint32_t kernel_stack;
 };
 
 #define MAX_PROCS 256

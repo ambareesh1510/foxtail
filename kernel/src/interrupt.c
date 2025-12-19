@@ -1,3 +1,4 @@
+#include "gdt.h"
 #include "kprintf.h"
 #include "proc.h"
 #include "util.h"
@@ -125,6 +126,7 @@ void timer_interrupt_handler(
     );
 
     curr_proc = ptable + scheduler_proc_index;
+    tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
     // Save registers in interrupt frame
     frame->sp = curr_proc->registers.esp;
     frame->ip = curr_proc->registers.eip;

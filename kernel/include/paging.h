@@ -11,6 +11,13 @@
 
 #define HIGHER_HALF_BASE 0xC0000000
 
+extern __attribute__((aligned(4096))) 
+__attribute__ ((section(".boot.data")))
+uint32_t kernel_pgdir[1024];
+extern __attribute__((aligned(4096)))
+__attribute__ ((section(".boot.data")))
+uint32_t kernel_id_pgtbl[1024];
+
 // void paging_setup();
 void 
 __attribute__ ((section(".boot.text")))

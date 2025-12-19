@@ -1,6 +1,13 @@
 #include "paging.h"
 #include "util.h"
 
+__attribute__((aligned(4096))) 
+__attribute__ ((section(".boot.data")))
+uint32_t kernel_pgdir[1024] = {0};
+__attribute__((aligned(4096)))
+__attribute__ ((section(".boot.data")))
+uint32_t kernel_id_pgtbl[1024] = {0};
+
 // Address that the kernel is mapped to in physical memory.
 
 void 

@@ -10,13 +10,6 @@
 #include "util.h"
 #include "kstring.h"
 
-__attribute__((aligned(4096))) 
-__attribute__ ((section(".boot.data")))
-uint32_t kernel_pgdir[1024] = {0};
-__attribute__((aligned(4096)))
-__attribute__ ((section(".boot.data")))
-uint32_t kernel_id_pgtbl[1024] = {0};
-
 struct higher_half_info {
     uint32_t mem_lower;
     uint32_t mem_upper;
@@ -111,10 +104,10 @@ higher_half_entry() {
     idt_load();
 
     struct inode *exe_inode = get_inode_by_path(get_root_inode(), "test");
-    exec(
-        exe_inode,
-        (uint32_t *) ((char *) kernel_id_pgtbl + HIGHER_HALF_BASE)
-    );
+    if (exe_inode == 0) {
+        panic("Init program not found");
+    }
+    exec(exe_inode);
 
     for (;;) {
         __asm__ volatile ("hlt");
