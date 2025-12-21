@@ -5,10 +5,13 @@
 #include "vga.h"
 #include "util.h"
 
-uint32_t cursor_row, cursor_column;
+uint32_t cursor_row = 0, cursor_column = 0;
 
 void kprint_next_line() {
     cursor_column = 0;
+    // if (cursor_row < VGA_HEIGHT - 1)
+    //     cursor_row++;
+    // return;
     if (cursor_row == VGA_HEIGHT - 1) {
         for (uint32_t y = 0; y < VGA_HEIGHT - 1; y++) {
             for (uint32_t x = 0; x < VGA_WIDTH; x++) {

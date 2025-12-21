@@ -15,6 +15,11 @@ struct saved_registers {
     uint32_t eflags;
 };
 
+enum proc_status {
+    EMBRYO,
+    RUNNABLE,
+};
+
 struct proc {
     bool present;
     uint32_t pid;
@@ -23,16 +28,18 @@ struct proc {
     char name[FILENAME_MAX_LEN];
     // Physical address of the kernel stack. Unused for now
     uint32_t kernel_stack;
+    uint32_t interrupt_frame_ptr;
+    enum proc_status status;
+    uint32_t kernel_sp;
 };
 
 #define MAX_PROCS 256
-extern struct proc ptable[256];
+extern struct proc ptable[MAX_PROCS];
 extern volatile uint32_t scheduler_proc_index;
 
 extern bool proc_exists;
 struct proc *alloc_proc();
 
-// void scheduler() __attribute__ ((no_caller_saved_registers));
 void scheduler();
 
 #endif /* PROC_H */

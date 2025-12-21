@@ -9,8 +9,14 @@ uint32_t max(uint32_t a, uint32_t b) {
     return (a > b) ? a : b;
 }
 
+void useless() {
+    return;
+}
+
+__attribute__ ((noreturn))
 void panic(char *msg) {
     kprintf("KERNEL PANIC: %s\n", msg);
+    __asm__ volatile ("cli");
     for (;;) {
         __asm__ volatile ("hlt");
     }

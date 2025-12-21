@@ -125,7 +125,9 @@ uint32_t fs_read_bytes(struct inode *inode, uint32_t offset, uint32_t size, char
         offset += block_read_size;
         buf_offset += block_read_size;
         total_bytes_read += block_read_size;
-        if (size < BLOCK_SIZE) break;
+        if (size < BLOCK_SIZE) {
+            break;
+        }
         size -= BLOCK_SIZE;
     }
     return total_bytes_read;

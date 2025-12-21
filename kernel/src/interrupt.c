@@ -1,5 +1,6 @@
 #include "gdt.h"
 #include "kprintf.h"
+#include "paging.h"
 #include "proc.h"
 #include "util.h"
 #include "interrupt.h"
@@ -25,7 +26,7 @@ struct __attribute__ ((packed)) idt_descriptor {
 };
 _Static_assert(sizeof(struct idt_descriptor) == 6, "IDT descriptor must be 6 bytes");
 
-struct interrupt_frame {
+struct __attribute__ ((packed)) interrupt_frame {
     uint32_t ip;
     uint32_t cs;
     uint32_t flags;
@@ -53,7 +54,7 @@ void idt_write_entry(
 }
 
 __attribute__ ((no_caller_saved_registers))
-inline void pic_send_eoi(uint8_t irq) {
+void pic_send_eoi(uint8_t irq) {
     if (irq >= 8) {
         // IRQs 8-15 are handled by the slave PIC
         outb(0xA0, 0x20);
@@ -61,79 +62,132 @@ inline void pic_send_eoi(uint8_t irq) {
     outb(0x20, 0x20);
 }
 
-__attribute__ ((interrupt))
-void timer_interrupt_handler(
-    struct interrupt_frame *frame
+// char *a = "TEST_TIMER_HANDLER esp = %d\n";
+char *a = "TEST_TIMER_HANDLER %x\n";
+__attribute__ ((naked))
+void timer_interrupt_handler() {
+    __asm__ volatile (
+        "cli\n"
+        "push %%esp; push %0\n; call kprintf; add $0x8, %%esp\n"
+        "pushal\n"
+        "push %%esp\n"
+        "call timer_interrupt_handler_inner\n"
+        "add $0x4, %%esp\n"
+        "popal\n"
+        "push 0(%%esp); push %0\n; call kprintf; add $0x8, %%esp\n"
+        "sti\n"
+        "iret\n"
+        : "=m"(a)
+        :
+        : "ebp", "esp", "eax", "ebx", "ecx", "edx", "memory"
+    );
+}
+
+struct __attribute__ ((packed)) regs_and_interrupt_frame {
+    struct syscall_registers regs;
+    struct interrupt_frame frame;
+};
+
+uint32_t global_ra;
+
+void timer_interrupt_handler_inner(
+    struct regs_and_interrupt_frame *f
 ) {
+    __asm__ volatile("mov 4(%%ebp), %0" : "=r"(global_ra));
     if (!proc_exists) {
         goto timer_handler_default;
     }
     struct proc *curr_proc = ptable + scheduler_proc_index;
     // Save registers in interrupt frame
-    curr_proc->registers.esp = frame->sp;
-    curr_proc->registers.eip = frame->ip;
-    curr_proc->registers.cs = frame->cs;
-    curr_proc->registers.ss = frame->ss;
-    curr_proc->registers.eflags = frame->flags;
-
+    curr_proc->registers.esp = f->frame.sp;
+    curr_proc->registers.eip = f->frame.ip;
+    curr_proc->registers.cs = f->frame.cs;
+    curr_proc->registers.ss = f->frame.ss;
+    curr_proc->registers.eflags = f->frame.flags;
 
     // Save general purpose registers
-    __asm__ volatile (
-        "mov %%eax, %0\n"
-        "mov %%ebx, %1\n"
-        "mov %%ecx, %2\n"
-        "mov %%edx, %3\n"
-        "mov %%esi, %4\n"
-        "mov %%edi, %5\n"
-        "mov %%ebp, %6\n"
-        "mov %%cr3, %%eax\n"
-        "mov %%eax, %7\n"
-        :
-        "=m"(curr_proc->registers.eax),
-        "=m"(curr_proc->registers.ebx),
-        "=m"(curr_proc->registers.ecx),
-        "=m"(curr_proc->registers.edx),
-        "=m"(curr_proc->registers.esi),
-        "=m"(curr_proc->registers.edi),
-        "=m"(curr_proc->registers.ebp),
-        "=m"(curr_proc->cr3)
-        : : "memory"
-    );
-    __asm__ volatile ("pushal");
-    scheduler();
-    __asm__ volatile ("popal");
+    curr_proc->registers.eax = f->regs.eax;
+    curr_proc->registers.ebx = f->regs.ebx;
+    curr_proc->registers.ecx = f->regs.ecx;
+    curr_proc->registers.edx = f->regs.edx;
+    // kprintf("f=%x\n", f);
+    // kprintf("c=%x\n", curr_proc);
+    // TODO: GPF/unknown opcode here?? why??
+    // because 0xc0200e9e... is getting modified before embryo 28 is created, or before sched is called.
+    // why?
+    curr_proc->registers.esi = f->regs.esi;
+    curr_proc->registers.edi = f->regs.edi;
+    curr_proc->registers.ebp = f->regs.ebp;
 
-    // Restore general purpose registers
+    // Save cr3
+    __asm__ volatile (
+        "mov %%cr3, %%eax\n"
+        "mov %%eax, %0\n"
+        : "=m"(curr_proc->cr3)
+        : : "eax"
+    );
+
+    curr_proc->interrupt_frame_ptr = (uint32_t) f;
+    __asm__ volatile (
+        "mov %%esp, %0"
+        : "=m"(curr_proc->kernel_sp) : : "memory");
+    kprintf("BEFORE f=%x\n", f);
+
+    scheduler();
+
+    curr_proc = ptable + scheduler_proc_index;
+    kprintf("curr proc pid is %d\n", curr_proc->pid);
+
+    // Restore cr3
     __asm__ volatile (
         "mov %0, %%eax\n"
         "mov %%eax, %%cr3\n"
-        "mov %1, %%eax\n"
-        "mov %2, %%ebx\n"
-        "mov %3, %%ecx\n"
-        "mov %4, %%edx\n"
-        "mov %5, %%esi\n"
-        "mov %6, %%edi\n"
-        "mov %7, %%ebp\n"
-        : :
-        "m"(curr_proc->cr3),
-        "m"(curr_proc->registers.eax),
-        "m"(curr_proc->registers.ebx),
-        "m"(curr_proc->registers.ecx),
-        "m"(curr_proc->registers.edx),
-        "m"(curr_proc->registers.esi),
-        "m"(curr_proc->registers.edi),
-        "m"(curr_proc->registers.ebp)
+        : : "m"(curr_proc->cr3) : "eax"
     );
 
     curr_proc = ptable + scheduler_proc_index;
-    tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
-    // Save registers in interrupt frame
-    frame->sp = curr_proc->registers.esp;
-    frame->ip = curr_proc->registers.eip;
-    frame->cs = curr_proc->registers.cs;
-    frame->ss = curr_proc->registers.ss;
-    frame->flags = curr_proc->registers.eflags;
+    f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
+    kprintf("curr proc pid is %d\n", curr_proc->pid);
+    kprintf("AFTER f=%x\n", f);
+    curr_proc->status = RUNNABLE;
 
+    // TODO: fix stack pointer for embryo
+    // __asm__ volatile (
+    //     "mov %0, %%esp"
+    //     : "=m"(curr_proc->kernel_sp) : : "esp");
+
+
+    // if (curr_proc->status == EMBRYO) {
+    //     f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
+    // } else {
+    //     f = (struct regs_and_interrupt_frame *) curr_proc->interrupt_frame_ptr;
+    // }
+    // TODO: initialize curr_proc->interrupt_frame_ptr, or set up an interrupt frame for unstarted processes (we are failing because an embryo process doesn't have an interrupt frame!)
+
+    // Restore registers in interrupt frame
+    f->frame.sp = curr_proc->registers.esp;
+    f->frame.ip = curr_proc->registers.eip;
+    f->frame.cs = curr_proc->registers.cs;
+    f->frame.ss = curr_proc->registers.ss;
+    f->frame.flags = curr_proc->registers.eflags;
+
+    // Restore general purpose registers
+    f->regs.eax = curr_proc->registers.eax;
+    f->regs.ebx = curr_proc->registers.ebx;
+    f->regs.ecx = curr_proc->registers.ecx;
+    f->regs.edx = curr_proc->registers.edx;
+    f->regs.esi = curr_proc->registers.esi;
+    f->regs.edi = curr_proc->registers.edi;
+    f->regs.ebp = curr_proc->registers.ebp;
+
+    // tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
+    kprintf("IRET target pid=%d: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
+            curr_proc->pid,
+        f->frame.ip, f->frame.cs, f->frame.flags,
+        f->frame.sp, f->frame.ss);
+
+
+    __asm__ volatile ("movl %0, 0x4(%%ebp)" : : "r"(global_ra) : "memory");
 timer_handler_default:
     ticks++;
     pic_send_eoi(0);

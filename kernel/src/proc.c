@@ -2,10 +2,9 @@
 #include "kprintf.h"
 #include "kstring.h"
 #include "util.h"
+#include "vga.h"
 
-#define MAX_PROCS 256
-
-struct proc ptable[256] = {0};
+struct proc ptable[MAX_PROCS] = {0};
 
 uint32_t curr_pid = 0;
 bool proc_exists = false;
@@ -15,13 +14,13 @@ struct proc *alloc_proc() {
     proc_exists = true;
     for (uint32_t i = 0; i < MAX_PROCS; i++) {
         if (!ptable[i].present) {
-            ptable[i].present = true;
             ptable[i].pid = curr_pid;
+            // kprintf("just allocated pid %d\n", curr_pid);
             curr_pid++;
             return ptable + i;
         }
     }
-    return 0;
+    panic("can't alloc proc\n");
 }
 
 // Return true on success, false on failure.
@@ -41,14 +40,21 @@ void restore_regs(struct proc *proc) {
 
 volatile uint32_t scheduler_proc_index = 0;
 void scheduler() {
-    scheduler_proc_index++;
-    for (uint32_t i = scheduler_proc_index; i != scheduler_proc_index - 1; i = (i + 1) % MAX_PROCS) {
+    uint32_t i = scheduler_proc_index;
+    for (;;) {
+        i = (i + 1) % MAX_PROCS;
         if (ptable[i].present) {
             // struct proc proc = ptable[i];
             scheduler_proc_index = i;
-            // kprintf("Scheduling process %d!\n", i);
+            // vga_putch_at(i + '0',  0, 0, 0x7);
+            kprintf("scheduling idx=%d pid=%d\n", i, ptable[i].pid);
+            // kprint("HLKJ\n");
             return;
             // Restore all registers from proc and call iret
         }
+        if (i == scheduler_proc_index) {
+            break;
+        }
     }
+    panic("No process to schedule\n");
 }

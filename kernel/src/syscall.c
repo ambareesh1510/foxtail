@@ -1,8 +1,13 @@
 #include "syscall.h"
+#include "exec.h"
+#include "fs.h"
 #include "interrupt.h"
 #include "kprintf.h"
 #include "paging.h"
+#include "proc.h"
 #include "syscall_defs.h"
+#include "vga.h"
+uint32_t *pt2 = (uint32_t *) 0xc0200e9e + 8;
 
 // TODO: write a page fault handler that kills the process so that we can't access random memory
 
@@ -49,15 +54,37 @@ void sys_read(struct syscall_registers *s) {
 }
 
 // Spawns a new process from the file path specified by ebx.
+// Returns ebx = -1 on failure.
+// Returns ebx = new pid on success.
 void sys_spawn_proc(struct syscall_registers *s) {
     if (!is_valid_user_addr(s->ebx)) {
         s->ebx = -1;
         return;
     }
-    // TODO: unfinished!
+    // TODO: update base of this to be cwd
+    struct inode *prog = get_inode_by_path(get_root_inode(), (char *) s->ebx);
+    if (prog == 0) {
+        panic("Exec bad inode\n");
+    }
+    // struct proc *new_proc = 0;
+    struct proc *new_proc = exec_helper(prog);
+    // kprintf("(B) bytes at 0xc0200e9e: %x %x %x %x\n", pt2[0], pt2[1], pt2[2], pt2[3]);
+    if (new_proc == 0) {
+        s->ebx = -1;
+    } else {
+        kprintf("embryo %d\n", new_proc->pid);
+        s->ebx = new_proc->pid;
+    }
+}
+
+void sys_getpid(struct syscall_registers *s) {
+    struct proc *curr_proc = ptable + scheduler_proc_index;
+    s->ebx = curr_proc->pid;
+    // vga_putch_at(curr_proc->pid + '0',  1, 0, 0x7);
 }
 
 void syscall_interrupt_handler_inner(struct syscall_registers *s) {
+    kprintf("(S) bytes at 0xc0200e9e: %x %x %x %x\n", pt2[0], pt2[1], pt2[2], pt2[3]);
     // kprintf("Syscall with eax = %x, ebx = %x, ecx = %x, edx = %x\n", s->eax, s->ebx, s->ecx, s->edx);
     switch (s->eax) {
         case SYS_WRITE:
@@ -66,9 +93,16 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
         case SYS_READ:
             sys_read(s);
             break;
+        case SYS_SPAWN_PROC:
+            sys_spawn_proc(s);
+            break;
+        case SYS_GETPID:
+            sys_getpid(s);
+            break;
         default:
             kprintf("Invalid syscall code: %d\n", s->eax);
             break;
     }
+    // kprintf("(E) bytes at 0xc0200e9e: %x %x %x %x\n", pt2[0], pt2[1], pt2[2], pt2[3]);
 }
 

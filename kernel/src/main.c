@@ -1,6 +1,7 @@
 #include "exec.h"
 #include "interrupt.h"
 #include "gdt.h"
+#include "proc.h"
 #include "vga.h"
 #include "paging.h"
 #include "fs.h"
@@ -18,6 +19,9 @@ struct higher_half_info {
 };
 
 void higher_half_entry();
+
+__attribute__ ((section(".boot.data")))
+uint32_t free_pages = 0;
 
 void 
 __attribute__ ((section(".boot.text")))
@@ -38,9 +42,11 @@ kernel_main(void) {
                     curr_addr < PAGE_ROUND_DOWN(entry->base_addr_low) + entry->length_low;
                     curr_addr += PGSIZE
                 ) {
+                    if (curr_addr < 0x400000) continue;
                     uint32_t entry = (curr_addr / PGSIZE) / 32;
                     uint32_t offset = (curr_addr / PGSIZE) % 32;
                     page_free_map[entry] |= 1 << offset;
+                    free_pages++;
                 }
             }
             entry = (struct memory_map *) (((char *) entry) + entry->size + 4);
@@ -87,8 +93,13 @@ kernel_main(void) {
 }
 
 
+char a_kernel_stack[2 * PGSIZE];
 void
 higher_half_entry() {
+    __asm__ volatile (
+        "mov %0, %%esp"
+        : : "r"(a_kernel_stack + 2 * PGSIZE)
+    );
     // Unmap the identity mapping of the lower half.
     kernel_pgdir[0] = 0;
     __asm__ volatile (
@@ -102,6 +113,10 @@ higher_half_entry() {
     // half.
     gdt_load();
     idt_load();
+
+    // kprintf("total free pages: %x\n", free_pages);
+    kprintf("Total free pages: %d\n", *(uint32_t *) ((char *) &free_pages + HIGHER_HALF_BASE));
+    // panic("");
 
     struct inode *exe_inode = get_inode_by_path(get_root_inode(), "test");
     if (exe_inode == 0) {

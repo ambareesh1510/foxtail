@@ -15,6 +15,7 @@ SECTIONS
     .text ALIGN(16) : AT(ADDR(.text) - 0xC0000000) {
         *(.text*)
     }
+    /* . = 0xC0280000; */
     .rodata ALIGN(16) : AT(ADDR(.rodata) - 0xC0000000) {
         *(.rodata*)
     }

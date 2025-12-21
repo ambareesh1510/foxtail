@@ -41,6 +41,6 @@ _Static_assert(sizeof(struct fs_dirent) == 4, "Bad dirent size");
 #define NUM_INODE_BLOCKS 8
 
 #define BLOCK_SIZE 4096
-#define NUM_BLOCKS 300
+#define NUM_BLOCKS 100
 
 #endif /* FS_DEFS_H */
