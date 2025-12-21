@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include "cleanup.h"
 #include "exec.h"
 #include "fs.h"
 #include "interrupt.h"
@@ -78,6 +79,11 @@ void sys_getpid(struct syscall_registers *s) {
     s->ebx = curr_proc->pid;
 }
 
+void sys_exit(struct syscall_registers *s) {
+    struct proc *curr_proc = get_current_proc();
+    cleanup_proc(curr_proc);
+}
+
 void syscall_interrupt_handler_inner(struct syscall_registers *s) {
     // kprintf("Syscall with eax = %x, ebx = %x, ecx = %x, edx = %x\n", s->eax, s->ebx, s->ecx, s->edx);
     switch (s->eax) {
@@ -92,6 +98,9 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
             break;
         case SYS_GETPID:
             sys_getpid(s);
+            break;
+        case SYS_EXIT:
+            sys_exit(s);
             break;
         default:
             kprintf("Invalid syscall code: %d\n", s->eax);

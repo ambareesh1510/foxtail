@@ -50,6 +50,12 @@ void _start() {
         );
     }
 
+    __asm__ volatile (
+        "int $0x80"
+        : :
+        "a"(SYS_EXIT)
+    );
+
     volatile int i = 0;
     while (1) {
         i++;

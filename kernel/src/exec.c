@@ -9,16 +9,12 @@
 #include "kstring.h"
 #include "proc.h"
 
-uint32_t times = 0;
-
 uint32_t new_pgdir[PGDIR_LEN];
 uint32_t old_cr3;
 struct elf_header elf_header;
 struct inode *prog;
 
 struct proc *exec_helper(struct inode *prog_ptr) {
-    // times++;
-    // kprintf("times: %d\n", times);
     prog = prog_ptr;
     fs_read_bytes(prog, 0, sizeof(elf_header), (char *) (&elf_header));
 
@@ -32,6 +28,7 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     // TODO: allocate argc, argv
 
     // Use the last entry of kernel_pgtbl as a temporary buffer.
+    // TODO: maybe move these to global scope, since they're also used in cleanup?
     uint32_t *kernel_pgtbl = (uint32_t *) ((char *) kernel_id_pgtbl + HIGHER_HALF_BASE);
     uint32_t *temp_page_ptr = (uint32_t *) (HIGHER_HALF_BASE + PGSIZE * (PGDIR_LEN - 1));
     
@@ -57,26 +54,29 @@ struct proc *exec_helper(struct inode *prog_ptr) {
             seg_addr < PAGE_ROUND_DOWN(program_header.vaddr + program_header.memsz) + PGSIZE;
             seg_addr += PGSIZE
         ) {
-            // TODO: shouldn't alloc a new page if there already exists one (e.g. from a previous segment)
-            // uint32_t _ = alloc_page();
-            uint32_t new_page_addr = alloc_page() * PGSIZE;
-
             uint32_t pgtbl_addr;
+            bool new = false;
             // If there's no page table, allocate one
             if (new_pgdir[seg_addr >> 22] == 0) {
                 uint32_t new_page_table_addr = alloc_page() * PGSIZE;
                 new_pgdir[seg_addr >> 22] = (new_page_table_addr & 0xfffff000) | 0x7;
                 pgtbl_addr = new_page_table_addr;
+                new = true;
             } else {
                 pgtbl_addr = new_pgdir[seg_addr >> 22] & 0xfffff000;
             }
             kernel_pgtbl[PGTBL_LEN - 1] = pgtbl_addr | 0x3;
-            __asm__ volatile (
-                "mov %%cr3, %%eax\n"
-                "mov %%eax, %%cr3\n"
-                : : : "%eax"
-            );
-            temp_page_ptr[(seg_addr >> 12) & 0x000003FF] = new_page_addr | 0x7;
+            flush_tlb();
+            // If we just allocated a new page table, zero it out.
+            if (new) {
+                memset((char *) temp_page_ptr, 0, PGSIZE);
+            }
+
+            if (temp_page_ptr[(seg_addr >> 12) & 0x000003FF] == 0) {
+                uint32_t new_page_addr = alloc_page() * PGSIZE;
+
+                temp_page_ptr[(seg_addr >> 12) & 0x000003FF] = new_page_addr | 0x7;
+            }
         }
 
     }
@@ -88,19 +88,22 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     uint32_t stack_pgtbl_addr;
     uint32_t stack_vaddr_low = HIGHER_HALF_BASE - PGSIZE;
     // If there's no page table, allocate one
+    bool new = false;
     if (new_pgdir[stack_vaddr_low >> 22] == 0) {
         uint32_t new_stack_page_table_addr = alloc_page() * PGSIZE;
         new_pgdir[stack_vaddr_low >> 22] = (new_stack_page_table_addr & 0xfffff000) | 0x7;
         stack_pgtbl_addr = new_stack_page_table_addr;
+        new = true;
     } else {
         stack_pgtbl_addr = new_pgdir[stack_vaddr_low >> 22] & 0xfffff000;
     }
     kernel_pgtbl[PGTBL_LEN - 1] = stack_pgtbl_addr | 0x3;
-    __asm__ volatile (
-        "mov %%cr3, %%eax\n"
-        "mov %%eax, %%cr3\n"
-        : : : "%eax"
-    );
+    flush_tlb();
+
+    // If we just allocated a new page table, zero it out.
+    if (new) {
+        memset((char *) temp_page_ptr, 0, PGSIZE);
+    }
     temp_page_ptr[PGTBL_LEN - 1] = stack_addr | 0x7;
     temp_page_ptr[PGTBL_LEN - 2] = kernel_stack_top_addr | 0x3;
     temp_page_ptr[PGTBL_LEN - 3] = kernel_stack_bottom_addr | 0x3;
@@ -111,11 +114,7 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     // Copy the new pgdir into newly allocated page
     uint32_t new_pgdir_addr = alloc_page() * PGSIZE;
     kernel_pgtbl[PGTBL_LEN - 1] = new_pgdir_addr | 0x3;
-    __asm__ volatile (
-        "mov %%cr3, %%eax\n"
-        "mov %%eax, %%cr3\n"
-        : : : "%eax"
-    );
+    flush_tlb();
     memcpy((char *) temp_page_ptr, (char *) new_pgdir, PGSIZE);
     kernel_pgtbl[PGTBL_LEN - 1] = (uint32_t) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) | 0x3;
     

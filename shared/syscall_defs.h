@@ -6,6 +6,7 @@ enum syscall_code {
     SYS_READ,
     SYS_SPAWN_PROC,
     SYS_GETPID,
+    SYS_EXIT,
 };
 
 #endif /* SYSCALL_DEFS_H */

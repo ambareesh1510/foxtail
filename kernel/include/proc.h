@@ -18,6 +18,7 @@ struct saved_registers {
 enum proc_status {
     EMBRYO,
     RUNNABLE,
+    KILLED,
 };
 
 struct proc {

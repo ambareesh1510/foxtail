@@ -11,6 +11,8 @@ uint32_t max(uint32_t a, uint32_t b);
 
 __attribute__ ((noreturn)) void panic(char *msg);
 
+void flush_tlb();
+
 void useless();
 
 #endif /* UTIL_H */

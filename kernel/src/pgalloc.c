@@ -18,6 +18,7 @@ uint32_t alloc_page() {
         if (page_free_map_high[page_alloc_ptr] & (1 << i)) {
             page_free_map_high[page_alloc_ptr] &= ~(1 << i);
             total_alloced_pages++;
+            // kprintf("alloced page %x\n", page_alloc_ptr * 32 + i);
             // kprintf("alloced a total of %d pages\n", total_alloced_pages);
             return page_alloc_ptr * 32 + i;
         }
@@ -29,11 +30,14 @@ uint32_t alloc_page() {
 
 /// Frees the page at the given index.
 /// Returns true on success, false on failure.
+uint32_t total_freed_pages = 0;
 bool free_page(uint32_t page_index) {
     if (page_free_map_high[page_index / 32] & (1 << (page_index % 32))) {
         return false;
     } else {
         page_free_map_high[page_index / 32] |= (1 << (page_index % 32));
+        total_freed_pages++;
+        // kprintf("freed a total of %d\n", total_freed_pages);
         return true;
     }
 }

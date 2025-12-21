@@ -21,3 +21,11 @@ void panic(char *msg) {
         __asm__ volatile ("hlt");
     }
 }
+
+void flush_tlb() {
+    __asm__ volatile (
+        "mov %%cr3, %%eax\n"
+        "mov %%eax, %%cr3\n"
+        : : : "%eax"
+    );
+}
