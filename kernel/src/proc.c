@@ -32,11 +32,6 @@ bool release_proc(struct proc *proc) {
         return true;
     }
 }
-void restore_regs(struct proc *proc) __attribute__ ((naked));
-
-void restore_regs(struct proc *proc) {
-    // proc->registers.eax
-}
 
 volatile uint32_t scheduler_proc_index = 0;
 void scheduler() {
@@ -44,11 +39,8 @@ void scheduler() {
     for (;;) {
         i = (i + 1) % MAX_PROCS;
         if (ptable[i].present) {
-            // struct proc proc = ptable[i];
             scheduler_proc_index = i;
-            // vga_putch_at(i + '0',  0, 0, 0x7);
-            kprintf("scheduling idx=%d pid=%d\n", i, ptable[i].pid);
-            // kprint("HLKJ\n");
+            // kprintf("scheduling idx=%d pid=%d\n", i, ptable[i].pid);
             return;
             // Restore all registers from proc and call iret
         }

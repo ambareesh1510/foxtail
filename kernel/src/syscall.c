@@ -7,7 +7,6 @@
 #include "proc.h"
 #include "syscall_defs.h"
 #include "vga.h"
-uint32_t *pt2 = (uint32_t *) 0xc0200e9e + 8;
 
 // TODO: write a page fault handler that kills the process so that we can't access random memory
 
@@ -66,13 +65,10 @@ void sys_spawn_proc(struct syscall_registers *s) {
     if (prog == 0) {
         panic("Exec bad inode\n");
     }
-    // struct proc *new_proc = 0;
     struct proc *new_proc = exec_helper(prog);
-    // kprintf("(B) bytes at 0xc0200e9e: %x %x %x %x\n", pt2[0], pt2[1], pt2[2], pt2[3]);
     if (new_proc == 0) {
         s->ebx = -1;
     } else {
-        kprintf("embryo %d\n", new_proc->pid);
         s->ebx = new_proc->pid;
     }
 }
@@ -80,11 +76,9 @@ void sys_spawn_proc(struct syscall_registers *s) {
 void sys_getpid(struct syscall_registers *s) {
     struct proc *curr_proc = ptable + scheduler_proc_index;
     s->ebx = curr_proc->pid;
-    // vga_putch_at(curr_proc->pid + '0',  1, 0, 0x7);
 }
 
 void syscall_interrupt_handler_inner(struct syscall_registers *s) {
-    kprintf("(S) bytes at 0xc0200e9e: %x %x %x %x\n", pt2[0], pt2[1], pt2[2], pt2[3]);
     // kprintf("Syscall with eax = %x, ebx = %x, ecx = %x, edx = %x\n", s->eax, s->ebx, s->ecx, s->edx);
     switch (s->eax) {
         case SYS_WRITE:
@@ -103,6 +97,5 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
             kprintf("Invalid syscall code: %d\n", s->eax);
             break;
     }
-    // kprintf("(E) bytes at 0xc0200e9e: %x %x %x %x\n", pt2[0], pt2[1], pt2[2], pt2[3]);
 }
 

@@ -16,24 +16,16 @@ uint32_t old_cr3;
 struct elf_header elf_header;
 struct inode *prog;
 
-    uint32_t *pt = (uint32_t *) 0xc0200e9e + 8;
-uint32_t before, after;
-
 struct proc *exec_helper(struct inode *prog_ptr) {
-    // kprintf("(1) bytes at 0xc0200e9e: %x %x %x %x\n", pt[0], pt[1], pt[2], pt[3]);
-    before = pt[0];
     // times++;
     // kprintf("times: %d\n", times);
     prog = prog_ptr;
-    // struct elf_header elf_header;
     fs_read_bytes(prog, 0, sizeof(elf_header), (char *) (&elf_header));
 
     if (elf_header.magic != ELF_MAGIC) {
         kprintf("Bad magic\n");
-        // panic("Bad magic\n");
         return 0;
     }
-    // kprintf("found %x segments\n", elf_header.phnum);
     struct proc *new_proc = alloc_proc();
     memcpy(new_proc->name, prog->name, FILENAME_MAX_LEN);
 
@@ -42,7 +34,6 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     // Use the last entry of kernel_pgtbl as a temporary buffer.
     uint32_t *kernel_pgtbl = (uint32_t *) ((char *) kernel_id_pgtbl + HIGHER_HALF_BASE);
     uint32_t *temp_page_ptr = (uint32_t *) (HIGHER_HALF_BASE + PGSIZE * (PGDIR_LEN - 1));
-    // kprintf("(2) bytes at 0xc0200e9e: %x %x %x %x\n", pt[0], pt[1], pt[2], pt[3]);
     
     // uint32_t new_pgdir[PGDIR_LEN] = {0};
     memset((char *) new_pgdir, 0, PGSIZE);
@@ -110,7 +101,6 @@ struct proc *exec_helper(struct inode *prog_ptr) {
         "mov %%eax, %%cr3\n"
         : : : "%eax"
     );
-    kprintf("(4) bytes at 0xc0200e9e: %x %x %x %x\n", pt[0], pt[1], pt[2], pt[3]);
     temp_page_ptr[PGTBL_LEN - 1] = stack_addr | 0x7;
     temp_page_ptr[PGTBL_LEN - 2] = kernel_stack_top_addr | 0x3;
     temp_page_ptr[PGTBL_LEN - 3] = kernel_stack_bottom_addr | 0x3;
@@ -146,7 +136,6 @@ struct proc *exec_helper(struct inode *prog_ptr) {
         : "r"(new_pgdir_addr)
         : "eax", "cr3"
     );
-    after = pt[0];
 
 
     // Copy each segment into memory
@@ -158,7 +147,7 @@ struct proc *exec_helper(struct inode *prog_ptr) {
             sizeof(program_header),
             (char *) (&program_header)
         );
-        __attribute__ ((unused)) uint32_t bytes = fs_read_bytes(prog, program_header.offset, program_header.memsz, (char *) program_header.vaddr);
+        fs_read_bytes(prog, program_header.offset, program_header.memsz, (char *) program_header.vaddr);
     }
 
     // Restore the old cr3
@@ -184,7 +173,6 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     
 
     // Copy new process's details into the proc struct
-    // kprintf("new proc eflags in exec_helper: %x\n", new_proc->registers.eflags);
     new_proc->cr3 = new_pgdir_addr;
     new_proc->registers.cs = 0x1B;
     new_proc->registers.ss = 0x23;

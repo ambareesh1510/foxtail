@@ -68,13 +68,13 @@ __attribute__ ((naked))
 void timer_interrupt_handler() {
     __asm__ volatile (
         "cli\n"
-        "push %%esp; push %0\n; call kprintf; add $0x8, %%esp\n"
+        // "push %%esp; push %0\n; call kprintf; add $0x8, %%esp\n"
         "pushal\n"
         "push %%esp\n"
         "call timer_interrupt_handler_inner\n"
         "add $0x4, %%esp\n"
         "popal\n"
-        "push 0(%%esp); push %0\n; call kprintf; add $0x8, %%esp\n"
+        // "push 0(%%esp); push %0\n; call kprintf; add $0x8, %%esp\n"
         "sti\n"
         "iret\n"
         : "=m"(a)
@@ -131,12 +131,10 @@ void timer_interrupt_handler_inner(
     __asm__ volatile (
         "mov %%esp, %0"
         : "=m"(curr_proc->kernel_sp) : : "memory");
-    kprintf("BEFORE f=%x\n", f);
 
     scheduler();
 
     curr_proc = ptable + scheduler_proc_index;
-    kprintf("curr proc pid is %d\n", curr_proc->pid);
 
     // Restore cr3
     __asm__ volatile (
@@ -147,8 +145,6 @@ void timer_interrupt_handler_inner(
 
     curr_proc = ptable + scheduler_proc_index;
     f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
-    kprintf("curr proc pid is %d\n", curr_proc->pid);
-    kprintf("AFTER f=%x\n", f);
     curr_proc->status = RUNNABLE;
 
     // TODO: fix stack pointer for embryo
@@ -180,11 +176,11 @@ void timer_interrupt_handler_inner(
     f->regs.edi = curr_proc->registers.edi;
     f->regs.ebp = curr_proc->registers.ebp;
 
-    // tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
-    kprintf("IRET target pid=%d: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
-            curr_proc->pid,
-        f->frame.ip, f->frame.cs, f->frame.flags,
-        f->frame.sp, f->frame.ss);
+    tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
+    // kprintf("IRET target pid=%d: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
+    //         curr_proc->pid,
+    //     f->frame.ip, f->frame.cs, f->frame.flags,
+    //     f->frame.sp, f->frame.ss);
 
 
     __asm__ volatile ("movl %0, 0x4(%%ebp)" : : "r"(global_ra) : "memory");
