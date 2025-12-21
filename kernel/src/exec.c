@@ -205,6 +205,7 @@ enum exec_status exec(struct inode *prog) {
     if (new_proc == 0) {
         panic("Exec helper failed\n");
     }
+    new_proc->status = RUNNABLE;
 
     // Ring 3 transition
     tss.esp0 = HIGHER_HALF_BASE - PGSIZE;

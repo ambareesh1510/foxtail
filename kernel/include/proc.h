@@ -28,9 +28,7 @@ struct proc {
     char name[FILENAME_MAX_LEN];
     // Physical address of the kernel stack. Unused for now
     uint32_t kernel_stack;
-    uint32_t interrupt_frame_ptr;
     enum proc_status status;
-    uint32_t kernel_sp;
 };
 
 #define MAX_PROCS 256
@@ -41,5 +39,6 @@ extern bool proc_exists;
 struct proc *alloc_proc();
 
 void scheduler();
+struct proc *get_current_proc();
 
 #endif /* PROC_H */

@@ -97,44 +97,11 @@ void timer_interrupt_handler_inner(
     if (!proc_exists) {
         goto timer_handler_default;
     }
-    struct proc *curr_proc = ptable + scheduler_proc_index;
-    // Save registers in interrupt frame
-    curr_proc->registers.esp = f->frame.sp;
-    curr_proc->registers.eip = f->frame.ip;
-    curr_proc->registers.cs = f->frame.cs;
-    curr_proc->registers.ss = f->frame.ss;
-    curr_proc->registers.eflags = f->frame.flags;
-
-    // Save general purpose registers
-    curr_proc->registers.eax = f->regs.eax;
-    curr_proc->registers.ebx = f->regs.ebx;
-    curr_proc->registers.ecx = f->regs.ecx;
-    curr_proc->registers.edx = f->regs.edx;
-    // kprintf("f=%x\n", f);
-    // kprintf("c=%x\n", curr_proc);
-    // TODO: GPF/unknown opcode here?? why??
-    // because 0xc0200e9e... is getting modified before embryo 28 is created, or before sched is called.
-    // why?
-    curr_proc->registers.esi = f->regs.esi;
-    curr_proc->registers.edi = f->regs.edi;
-    curr_proc->registers.ebp = f->regs.ebp;
-
-    // Save cr3
-    __asm__ volatile (
-        "mov %%cr3, %%eax\n"
-        "mov %%eax, %0\n"
-        : "=m"(curr_proc->cr3)
-        : : "eax"
-    );
-
-    curr_proc->interrupt_frame_ptr = (uint32_t) f;
-    __asm__ volatile (
-        "mov %%esp, %0"
-        : "=m"(curr_proc->kernel_sp) : : "memory");
+    struct proc *curr_proc = get_current_proc();
 
     scheduler();
 
-    curr_proc = ptable + scheduler_proc_index;
+    curr_proc = get_current_proc();
 
     // Restore cr3
     __asm__ volatile (
@@ -142,23 +109,15 @@ void timer_interrupt_handler_inner(
         "mov %%eax, %%cr3\n"
         : : "m"(curr_proc->cr3) : "eax"
     );
+    
+    if (curr_proc->status != EMBRYO) {
+        goto timer_handler_default;
+    }
 
-    curr_proc = ptable + scheduler_proc_index;
+    curr_proc = get_current_proc();
+
     f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
     curr_proc->status = RUNNABLE;
-
-    // TODO: fix stack pointer for embryo
-    // __asm__ volatile (
-    //     "mov %0, %%esp"
-    //     : "=m"(curr_proc->kernel_sp) : : "esp");
-
-
-    // if (curr_proc->status == EMBRYO) {
-    //     f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
-    // } else {
-    //     f = (struct regs_and_interrupt_frame *) curr_proc->interrupt_frame_ptr;
-    // }
-    // TODO: initialize curr_proc->interrupt_frame_ptr, or set up an interrupt frame for unstarted processes (we are failing because an embryo process doesn't have an interrupt frame!)
 
     // Restore registers in interrupt frame
     f->frame.sp = curr_proc->registers.esp;
@@ -177,11 +136,6 @@ void timer_interrupt_handler_inner(
     f->regs.ebp = curr_proc->registers.ebp;
 
     tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
-    // kprintf("IRET target pid=%d: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
-    //         curr_proc->pid,
-    //     f->frame.ip, f->frame.cs, f->frame.flags,
-    //     f->frame.sp, f->frame.ss);
-
 
     __asm__ volatile ("movl %0, 0x4(%%ebp)" : : "r"(global_ra) : "memory");
 timer_handler_default:

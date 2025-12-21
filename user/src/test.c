@@ -18,7 +18,7 @@ void _start() {
         "mov %%ebx, %0"
         : "=m"(pid)
     );
-    if (pid < 26) {
+    if (pid < 1) {
         char *name = "test";
         __asm__ volatile (
             "mov $0x02, %%eax\n"

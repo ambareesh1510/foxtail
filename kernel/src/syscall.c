@@ -74,7 +74,7 @@ void sys_spawn_proc(struct syscall_registers *s) {
 }
 
 void sys_getpid(struct syscall_registers *s) {
-    struct proc *curr_proc = ptable + scheduler_proc_index;
+    struct proc *curr_proc = get_current_proc();
     s->ebx = curr_proc->pid;
 }
 

@@ -50,3 +50,7 @@ void scheduler() {
     }
     panic("No process to schedule\n");
 }
+
+struct proc *get_current_proc() {
+    return ptable + scheduler_proc_index;
+}
