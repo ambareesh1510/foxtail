@@ -16,24 +16,24 @@ bool is_valid_user_addr(uint32_t addr) {
 }
 
 // Writes the string pointed to by ebx to stdout.
-// Returns ebx = 0 on success.
-// ebx = -1 if error.
+// Returns eax = 0 on success.
+// eax = -1 if error.
 void sys_write(struct syscall_registers *s) {
     if (!is_valid_user_addr(s->ebx)) {
-        s->ebx = -1;
+        s->eax = -1;
         return;
     }
     kprint((char *) s->ebx);
-    s->ebx = 0;
+    s->eax = 0;
     return;
 }
 
 // Reads ecx bytes from stdin to the buf at ebx.
-// Returns ebx = -1 on error.
-// Returns ebx = 0, ecx = # bytes read on success.
+// Returns eax = -1 on error.
+// Returns eax = # bytes read on success.
 void sys_read(struct syscall_registers *s) {
     if (!is_valid_user_addr(s->ebx)) {
-        s->ebx = -1;
+        s->eax = -1;
         return;
     }
     char *buf = (char *) s->ebx;
@@ -49,34 +49,34 @@ void sys_read(struct syscall_registers *s) {
             input_buffer_nonempty = false;
         }
     }
-    s->ebx = 0;
-    s->ecx = count;
+    s->eax = count;
 }
 
 // Spawns a new process from the file path specified by ebx.
-// Returns ebx = -1 on failure.
-// Returns ebx = new pid on success.
+// Returns eax = -1 on failure.
+// Returns eax = new pid on success.
 void sys_spawn_proc(struct syscall_registers *s) {
     if (!is_valid_user_addr(s->ebx)) {
-        s->ebx = -1;
+        s->eax = -1;
         return;
     }
     // TODO: update base of this to be cwd
     struct inode *prog = get_inode_by_path(get_root_inode(), (char *) s->ebx);
     if (prog == 0) {
-        panic("Exec bad inode\n");
+        s->eax = -1;
+        return;
     }
     struct proc *new_proc = exec_helper(prog);
     if (new_proc == 0) {
-        s->ebx = -1;
+        s->eax = -1;
     } else {
         new_proc->parent = get_current_proc()->pid;
-        s->ebx = new_proc->pid;
+        s->eax = new_proc->pid;
     }
 }
 
 void sys_getpid(struct syscall_registers *s) {
-    s->ebx = get_current_proc()->pid;
+    s->eax = get_current_proc()->pid;
 }
 
 void sys_exit(struct syscall_registers *s) {
@@ -89,6 +89,7 @@ void sys_exit(struct syscall_registers *s) {
 // If pid doesn't exist, fail
 // If pid isn't child of current process, fail
 // Otherwise, set state to waiting, set waiting_proc to pid
+// Return eax = 0 on success, eax = -1 on failure.
 void sys_wait(struct syscall_registers *s) {
     struct proc *curr_proc = get_current_proc();
     uint32_t pid = s->ebx;
@@ -106,9 +107,9 @@ void sys_wait(struct syscall_registers *s) {
         curr_proc->status = WAITING;
         curr_proc->waiting_on = i;
         __asm__ volatile ("int $0x20");
-        s->ebx = 0;
+        s->eax = 0;
     } else {
-        s->ebx = -1;
+        s->eax = -1;
     }
 }
 

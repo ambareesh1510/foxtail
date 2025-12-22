@@ -10,4 +10,80 @@ enum syscall_code {
     SYS_WAIT,
 };
 
+// Write the null-terminated string `str` to stdout.
+// Returns: 0 on success, -1 on error.
+static inline int write(const char *str) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_WRITE), "b"(str)
+        : "memory"
+    );
+    return ret;
+}
+
+// Read up to `count` bytes from stdin into `buf`.
+// Returns: number of bytes read, or -1 on error
+static inline int read(char *buf, unsigned int count) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_READ), "b"(buf), "c"(count)
+        : "memory"
+    );
+    return ret;
+}
+
+// Spawn a new process from the given `path`.
+// Returns: PID of new process on success, -1 on error
+static inline int spawn_proc(const char *path) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_SPAWN_PROC), "b"(path)
+        : "memory"
+    );
+    return ret;
+}
+
+// Get PID of current process.
+// Returns: PID of current process
+static inline int getpid(void) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_GETPID)
+    );
+    return ret;
+}
+
+// Exit current process
+// Does not return
+static inline void exit(void) {
+    __asm__ volatile(
+        "int $0x80"
+        : 
+        : "a"(SYS_EXIT)
+    );
+    // Should never reach here
+    while(1);
+}
+
+// Wait for child process with given `pid` to exit.
+// Returns: 0 on success, -1 if PID doesn't exist or isn't a child
+static inline int wait(int pid) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_WAIT), "b"(pid)
+        : "memory"
+    );
+    return ret;
+}
+
 #endif /* SYSCALL_DEFS_H */
