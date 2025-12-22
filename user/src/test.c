@@ -1,12 +1,5 @@
 #include "syscall_defs.h"
 void _start() {
-    char *a = "Hello from test.c!\n";
-    __asm__ volatile (
-        "mov $0x0, %%eax\n"
-        "mov %0, %%ebx\n"
-        "int $0x80"
-        : : "r"(a) : "eax", "ebx"
-    );
 
     __asm__ volatile (
         "int $0x80"
@@ -18,38 +11,56 @@ void _start() {
         "mov %%ebx, %0"
         : "=m"(pid)
     );
-    if (pid < 1) {
+    if (pid < 4) {
         char *name = "test";
         __asm__ volatile (
-            "mov $0x02, %%eax\n"
-            "mov %0, %%ebx\n"
+            "mov %0, %%eax\n"
+            "mov %1, %%ebx\n"
             "int $0x80\n"
             : :
+            "i"(SYS_SPAWN_PROC),
             "m"(name)
+            : "eax", "ebx"
+        );
+        int other_pid;
+        __asm__ volatile (
+            "mov %%ebx, %0"
+            : "=m"(other_pid)
+        );
+        char *b = "start wait!\n";
+        __asm__ volatile (
+            "mov $0x0, %%eax\n"
+            "mov %0, %%ebx\n"
+            "int $0x80"
+            : : "r"(b) : "eax", "ebx"
         );
         __asm__ volatile (
-            "mov $0x02, %%eax\n"
-            "mov %0, %%ebx\n"
+            "mov %0, %%eax\n"
+            "mov %1, %%ebx\n"
             "int $0x80\n"
             : :
-            "m"(name)
+            "i"(SYS_WAIT),
+            "m"(other_pid)
+            : "eax", "ebx"
         );
+        char *a = "Done waiting!\n";
         __asm__ volatile (
-            "mov $0x02, %%eax\n"
+            "mov $0x0, %%eax\n"
             "mov %0, %%ebx\n"
-            "int $0x80\n"
-            : :
-            "m"(name)
+            "int $0x80"
+            : : "r"(a) : "eax", "ebx"
         );
+    } else {
+        char *a = "Hello from test.c!\n";
         __asm__ volatile (
-            "mov $0x02, %%eax\n"
+            "mov $0x0, %%eax\n"
             "mov %0, %%ebx\n"
-            "int $0x80\n"
-            : :
-            "m"(name)
+            "int $0x80"
+            : : "r"(a) : "eax", "ebx"
         );
     }
 
+    // __asm__ volatile ("int $0x20");
     __asm__ volatile (
         "int $0x80"
         : :

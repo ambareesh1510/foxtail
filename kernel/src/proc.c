@@ -38,17 +38,19 @@ void scheduler() {
     uint32_t i = scheduler_proc_index;
     for (;;) {
         i = (i + 1) % MAX_PROCS;
-        if (ptable[i].present) {
+        enum proc_status status = ptable[i].status;
+        // kprintf("Found idx=%d has status %d\n", i, status);
+        if (status == EMBRYO || status == RUNNABLE) {
             scheduler_proc_index = i;
             // kprintf("scheduling idx=%d pid=%d\n", i, ptable[i].pid);
             return;
-            // Restore all registers from proc and call iret
-        }
-        if (i == scheduler_proc_index) {
-            break;
+        } else if (status == WAITING) {
+            if (ptable[ptable[i].waiting_on].status == KILLED) {
+                ptable[i].status = RUNNABLE;
+            }
         }
     }
-    panic("No process to schedule\n");
+    panic("UNREACHABLE: scheduler exited without choosing process\n");
 }
 
 struct proc *get_current_proc() {

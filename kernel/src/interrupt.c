@@ -62,35 +62,55 @@ void pic_send_eoi(uint8_t irq) {
     outb(0x20, 0x20);
 }
 
-// char *a = "TEST_TIMER_HANDLER esp = %d\n";
-char *a = "TEST_TIMER_HANDLER %x\n";
-__attribute__ ((naked))
-void timer_interrupt_handler() {
-    __asm__ volatile (
-        "cli\n"
-        // "push %%esp; push %0\n; call kprintf; add $0x8, %%esp\n"
-        "pushal\n"
-        "push %%esp\n"
-        "call timer_interrupt_handler_inner\n"
-        "add $0x4, %%esp\n"
-        "popal\n"
-        // "push 0(%%esp); push %0\n; call kprintf; add $0x8, %%esp\n"
-        "sti\n"
-        "iret\n"
-        : "=m"(a)
-        :
-        : "ebp", "esp", "eax", "ebx", "ecx", "edx", "memory"
-    );
-}
 
 struct __attribute__ ((packed)) regs_and_interrupt_frame {
     struct syscall_registers regs;
     struct interrupt_frame frame;
 };
 
+uint32_t get_curr_proc_status() {
+    kprintf("curr status = %d\n", get_current_proc()->status);
+    return get_current_proc()->status;
+}
+
+void set_curr_proc_runnable() {
+    struct proc *curr_proc = get_current_proc();
+    curr_proc->status = RUNNABLE;
+}
+
+// char *a = "TEST_TIMER_HANDLER esp = %d\n";
+char *a = "TEST_TIMER_HANDLER %x\n";
+__attribute__ ((naked))
+void timer_interrupt_handler() {
+    __asm__ volatile (
+        "cli\n"
+        "pushal\n"
+        "push %%esp\n"
+        "call timer_interrupt_handler_inner\n"
+        // If it's an embryo, set the esp to
+        // HIGHER_HALF_BASE - PGSIZE - sizeof(struct regs_and_interrupt_frame)
+        // "push %%eax; push %0\n; call kprintf; add $0x8, %%esp\n"
+        "cmp %2, %%eax\n"
+        "jne not_embryo\n"
+        "mov %3, %%esp\n"
+        "not_embryo:\n"
+        "add $0x4, %%esp\n"
+        "popal\n"
+        "sti\n"
+        "iret\n"
+        : :
+          "m"(a),
+          "m"(get_current_proc()->status),
+          "i"(EMBRYO),
+          "i"(HIGHER_HALF_BASE - PGSIZE - sizeof(struct regs_and_interrupt_frame) - 4)
+          // "i"(0xBFFFEFCC)
+        : "ebp", "esp", "eax", "ebx", "ecx", "edx", "memory", "cc"
+    );
+}
+
 uint32_t global_ra;
 
-void timer_interrupt_handler_inner(
+uint32_t timer_interrupt_handler_inner(
     struct regs_and_interrupt_frame *f
 ) {
     __asm__ volatile("mov 4(%%ebp), %0" : "=r"(global_ra));
@@ -117,7 +137,7 @@ void timer_interrupt_handler_inner(
     curr_proc = get_current_proc();
 
     f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
-    curr_proc->status = RUNNABLE;
+    // curr_proc->status = RUNNABLE;
 
     // Restore registers in interrupt frame
     f->frame.sp = curr_proc->registers.esp;
@@ -135,12 +155,21 @@ void timer_interrupt_handler_inner(
     f->regs.edi = curr_proc->registers.edi;
     f->regs.ebp = curr_proc->registers.ebp;
 
+    // kprintf("IRET target: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
+    //     f->frame.ip, f->frame.cs, f->frame.flags,
+    //     f->frame.sp, f->frame.ss);
+
     tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
 
     __asm__ volatile ("movl %0, 0x4(%%ebp)" : : "r"(global_ra) : "memory");
 timer_handler_default:
     ticks++;
     pic_send_eoi(0);
+    if (!proc_exists) {
+        return 0;
+    } else {
+        return curr_proc->status;
+    }
 }
 
 // Source - https://stackoverflow.com/a

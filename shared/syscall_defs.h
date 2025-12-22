@@ -7,6 +7,7 @@ enum syscall_code {
     SYS_SPAWN_PROC,
     SYS_GETPID,
     SYS_EXIT,
+    SYS_WAIT,
 };
 
 #endif /* SYSCALL_DEFS_H */

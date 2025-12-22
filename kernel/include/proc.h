@@ -16,8 +16,10 @@ struct saved_registers {
 };
 
 enum proc_status {
+    UNUSED,
     EMBRYO,
     RUNNABLE,
+    WAITING,
     KILLED,
 };
 
@@ -30,6 +32,8 @@ struct proc {
     // Physical address of the kernel stack. Unused for now
     uint32_t kernel_stack;
     enum proc_status status;
+    uint32_t parent;
+    uint32_t waiting_on;
 };
 
 #define MAX_PROCS 256

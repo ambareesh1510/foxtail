@@ -70,18 +70,46 @@ void sys_spawn_proc(struct syscall_registers *s) {
     if (new_proc == 0) {
         s->ebx = -1;
     } else {
+        new_proc->parent = get_current_proc()->pid;
         s->ebx = new_proc->pid;
     }
 }
 
 void sys_getpid(struct syscall_registers *s) {
-    struct proc *curr_proc = get_current_proc();
-    s->ebx = curr_proc->pid;
+    s->ebx = get_current_proc()->pid;
 }
 
 void sys_exit(struct syscall_registers *s) {
+    // TODO: this might not work: sys_exit has a stack frame on the kernel stack, but that kernel stack gets cleaned up in cleanup_proc(). 
+    // Instead, we should store kernel stack addr in the proc struct and free it (in scheduler()) once the process is killed.
+    cleanup_proc(get_current_proc());
+    __asm__ volatile ("int $0x20");
+}
+
+// If pid doesn't exist, fail
+// If pid isn't child of current process, fail
+// Otherwise, set state to waiting, set waiting_proc to pid
+void sys_wait(struct syscall_registers *s) {
     struct proc *curr_proc = get_current_proc();
-    cleanup_proc(curr_proc);
+    uint32_t pid = s->ebx;
+    bool found = false;
+    uint32_t i;
+    for (i = 0; i < MAX_PROCS; i++) {
+        if (ptable[i].pid == pid) {
+            if (ptable[i].parent == get_current_proc()->pid) {
+                found = true;
+            }
+            break;
+        }
+    }
+    if (found) {
+        curr_proc->status = WAITING;
+        curr_proc->waiting_on = i;
+        __asm__ volatile ("int $0x20");
+        s->ebx = 0;
+    } else {
+        s->ebx = -1;
+    }
 }
 
 void syscall_interrupt_handler_inner(struct syscall_registers *s) {
@@ -101,6 +129,9 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
             break;
         case SYS_EXIT:
             sys_exit(s);
+            break;
+        case SYS_WAIT:
+            sys_wait(s);
             break;
         default:
             kprintf("Invalid syscall code: %d\n", s->eax);
