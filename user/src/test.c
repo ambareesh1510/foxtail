@@ -1,5 +1,16 @@
 #include "syscall_defs.h"
 void _start() {
+    char buf[100];
+    int bytes;
+    for (;;) {
+        write("> ");
+        bytes = read(buf, 99);
+        buf[bytes] = '\0';
+        write(buf);
+    }
+    exit();
+
+
     int pid = getpid();
     if (pid < 4) {
         int other_pid = spawn_proc("test");
@@ -10,7 +21,10 @@ void _start() {
         write("Hello from test.c!\n");
     }
 
-    exit();
+    write("Next!\n");
+    for (int j = 0; j < 10001; j++) { getpid(); }
 
-    while (1);
+    exit();
+    // while(1);
+
 }

@@ -117,12 +117,19 @@ higher_half_entry() {
     // kprintf("total free pages: %x\n", free_pages);
     kprintf("Total free pages: %d\n", *(uint32_t *) ((char *) &free_pages + HIGHER_HALF_BASE));
     // panic("");
+    //
+    struct inode *idle_inode = get_inode_by_path(get_root_inode(), "idle");
+    if (idle_inode == 0) {
+        panic("Idle program not found");
+    }
+    exec_helper(idle_inode);
 
     struct inode *exe_inode = get_inode_by_path(get_root_inode(), "test");
     if (exe_inode == 0) {
         panic("Init program not found");
     }
     exec(exe_inode);
+    // exec(idle_inode);
 
     for (;;) {
         __asm__ volatile ("hlt");

@@ -29,12 +29,23 @@ void sys_write(struct syscall_registers *s) {
 }
 
 // Reads ecx bytes from stdin to the buf at ebx.
+// Blocks until at least one byte is available.
+// TODO: will need to change blocking behavior when
+//   making read() work with files.
+// TODO: will need to rethink blocking implementation
+//   when adding multiple cores.
 // Returns eax = -1 on error.
 // Returns eax = # bytes read on success.
 void sys_read(struct syscall_registers *s) {
     if (!is_valid_user_addr(s->ebx)) {
         s->eax = -1;
         return;
+    }
+    if (!input_buffer_nonempty) {
+        struct proc *curr_proc = get_current_proc();
+        // kprintf("waiting read %d\n", curr_proc->pid);
+        curr_proc->status = WAITING_ON_READ;
+        __asm__ volatile ("int $0x20");
     }
     char *buf = (char *) s->ebx;
     uint32_t target = s->ecx;
@@ -83,6 +94,7 @@ void sys_exit(struct syscall_registers *s) {
     // TODO: this might not work: sys_exit has a stack frame on the kernel stack, but that kernel stack gets cleaned up in cleanup_proc(). 
     // Instead, we should store kernel stack addr in the proc struct and free it (in scheduler()) once the process is killed.
     cleanup_proc(get_current_proc());
+    kprintf("Kill %d\n", get_current_proc()->pid);
     __asm__ volatile ("int $0x20");
 }
 
@@ -104,7 +116,7 @@ void sys_wait(struct syscall_registers *s) {
         }
     }
     if (found) {
-        curr_proc->status = WAITING;
+        curr_proc->status = WAITING_ON_PID;
         curr_proc->waiting_on = i;
         __asm__ volatile ("int $0x20");
         s->eax = 0;

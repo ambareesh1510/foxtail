@@ -1,4 +1,5 @@
 #include "proc.h"
+#include "interrupt.h"
 #include "kprintf.h"
 #include "kstring.h"
 #include "util.h"
@@ -13,7 +14,7 @@ bool proc_exists = false;
 struct proc *alloc_proc() {
     proc_exists = true;
     for (uint32_t i = 0; i < MAX_PROCS; i++) {
-        if (!ptable[i].present) {
+        if (ptable[i].status == UNUSED) {
             ptable[i].pid = curr_pid;
             // kprintf("just allocated pid %d\n", curr_pid);
             curr_pid++;
@@ -33,22 +34,38 @@ bool release_proc(struct proc *proc) {
     }
 }
 
-volatile uint32_t scheduler_proc_index = 0;
+volatile uint32_t scheduler_proc_index;
+// TODO: figure out how to schedule idle process only when there are no other runnable processes
 void scheduler() {
     uint32_t i = scheduler_proc_index;
+    uint32_t since_last_runnable = 0;
     for (;;) {
+        since_last_runnable++;
         i = (i + 1) % MAX_PROCS;
         enum proc_status status = ptable[i].status;
+        if (i == 1 || i == 0) {
         // kprintf("Found idx=%d has status %d\n", i, status);
+        }
         if (status == EMBRYO || status == RUNNABLE) {
             scheduler_proc_index = i;
-            // kprintf("scheduling idx=%d pid=%d\n", i, ptable[i].pid);
+            since_last_runnable = 0;
+            // kprintf("scheduling idx=%d pid=%d name=%s status=%d\n", i, ptable[i].pid, ptable[i].name, ptable[i].status);
             return;
-        } else if (status == WAITING) {
+        } else if (status == WAITING_ON_PID) {
             if (ptable[ptable[i].waiting_on].status == KILLED) {
                 ptable[i].status = RUNNABLE;
+                since_last_runnable = 0;
+            }
+        } else if (status == WAITING_ON_READ) {
+            if (input_buffer_nonempty) {
+                ptable[i].status = RUNNABLE;
+                since_last_runnable = 0;
             }
         }
+        // if (since_last_runnable == MAX_PROCS) {
+        //     // since_last_runnable = 0;
+        //     // __asm__ volatile ("sti; hlt; cli");
+        // }
     }
     panic("UNREACHABLE: scheduler exited without choosing process\n");
 }

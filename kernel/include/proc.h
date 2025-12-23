@@ -19,7 +19,8 @@ enum proc_status {
     UNUSED,
     EMBRYO,
     RUNNABLE,
-    WAITING,
+    WAITING_ON_PID,
+    WAITING_ON_READ,
     KILLED,
 };
 
@@ -34,6 +35,8 @@ struct proc {
     enum proc_status status;
     uint32_t parent;
     uint32_t waiting_on;
+    uint32_t kernel_sp;
+    uint32_t kernel_bp;
 };
 
 #define MAX_PROCS 256

@@ -69,7 +69,6 @@ struct __attribute__ ((packed)) regs_and_interrupt_frame {
 };
 
 uint32_t get_curr_proc_status() {
-    kprintf("curr status = %d\n", get_current_proc()->status);
     return get_current_proc()->status;
 }
 
@@ -89,12 +88,14 @@ void timer_interrupt_handler() {
         "call timer_interrupt_handler_inner\n"
         // If it's an embryo, set the esp to
         // HIGHER_HALF_BASE - PGSIZE - sizeof(struct regs_and_interrupt_frame)
-        // "push %%eax; push %0\n; call kprintf; add $0x8, %%esp\n"
+        // TODO: should do this on every context switch (restore esp)
         "cmp %2, %%eax\n"
         "jne not_embryo\n"
         "mov %3, %%esp\n"
+        "call set_curr_proc_runnable\n"
         "not_embryo:\n"
         "add $0x4, %%esp\n"
+        // "push 0(%%esp); push %0\n; call kprintf; add $0x8, %%esp\n"
         "popal\n"
         "sti\n"
         "iret\n"
@@ -109,35 +110,66 @@ void timer_interrupt_handler() {
 }
 
 uint32_t global_ra;
+uint32_t global_esp;
+uint32_t global_ebp;
+
+char ctx_switch_temp_stack[2 * PGSIZE];
 
 uint32_t timer_interrupt_handler_inner(
     struct regs_and_interrupt_frame *f
 ) {
+    pic_send_eoi(0);
     __asm__ volatile("mov 4(%%ebp), %0" : "=r"(global_ra));
     if (!proc_exists) {
         goto timer_handler_default;
     }
     struct proc *curr_proc = get_current_proc();
 
-    scheduler();
 
+
+    // __asm__ volatile ("push %esp");
+    __asm__ volatile (
+        "mov %%esp, %0\n"
+        :
+        "=m"(curr_proc->kernel_sp)
+        : : "memory"
+    );
+    global_esp = curr_proc->kernel_sp;
+
+    scheduler();
     curr_proc = get_current_proc();
 
     // Restore cr3
     __asm__ volatile (
         "mov %0, %%eax\n"
         "mov %%eax, %%cr3\n"
-        : : "m"(curr_proc->cr3) : "eax"
+        "mov %1, %%esp\n"
+        : :
+        "m"(curr_proc->cr3),
+        "i"(ctx_switch_temp_stack + 2 * PGSIZE)
+        : "eax"
     );
-    
-    if (curr_proc->status != EMBRYO) {
+    // Switch to temporary kernel stack to avoid corrupting new process's kernel stack
+    // TODO: this feels super hacky. is there a better solution?
+
+    struct proc *new_curr_proc = get_current_proc();
+
+    if (new_curr_proc->status != EMBRYO) {
+        __asm__ volatile (
+            "mov %0, %%esp"
+            : : "m"(new_curr_proc->kernel_sp)
+            : "esp"
+        );
         goto timer_handler_default;
     }
+    __asm__ volatile (
+        "mov %0, %%esp\n"
+        : : "m"(global_esp)
+        : "esp"
+    );
 
-    curr_proc = get_current_proc();
 
     f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
-    // curr_proc->status = RUNNABLE;
 
     // Restore registers in interrupt frame
     f->frame.sp = curr_proc->registers.esp;
@@ -155,16 +187,18 @@ uint32_t timer_interrupt_handler_inner(
     f->regs.edi = curr_proc->registers.edi;
     f->regs.ebp = curr_proc->registers.ebp;
 
-    // kprintf("IRET target: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
-    //     f->frame.ip, f->frame.cs, f->frame.flags,
-    //     f->frame.sp, f->frame.ss);
 
     tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
 
     __asm__ volatile ("movl %0, 0x4(%%ebp)" : : "r"(global_ra) : "memory");
 timer_handler_default:
+    f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
+    // kprintf("curr proc pid=%d, status=%d, esp=%x\n", curr_proc->pid, curr_proc->status, curr_proc->kernel_sp);
+    // kprintf("IRET target: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
+    //     f->frame.ip, f->frame.cs, f->frame.flags,
+    //     f->frame.sp, f->frame.ss);
     ticks++;
-    pic_send_eoi(0);
+    // pic_send_eoi(0);
     if (!proc_exists) {
         return 0;
     } else {
@@ -212,9 +246,13 @@ char kbd_US [128] =
 };
 
 
+char input_staging_buffer[INPUT_BUFFER_LEN] = {0};
+uint32_t input_staging_buffer_write_ptr = 0;
+
 char input_buffer[INPUT_BUFFER_LEN] = {0};
 uint32_t input_buffer_write_ptr = 0;
 uint32_t input_buffer_read_ptr = 0;
+
 bool input_buffer_nonempty = false;
 
 __attribute__ ((interrupt))
@@ -225,12 +263,22 @@ void keyboard_interrupt_handler(
     kb_char = scancode;
     if (kbd_US[scancode] != 0) {
         char c = kbd_US[scancode];
-        input_buffer[input_buffer_write_ptr] = c;
         __asm__ volatile ("pushal");
         kprint_char(c);
         __asm__ volatile ("popal");
-        input_buffer_write_ptr = (input_buffer_write_ptr + 1) % INPUT_BUFFER_LEN;
-        input_buffer_nonempty = true;
+        input_staging_buffer[input_staging_buffer_write_ptr] = c;
+        __asm__ volatile ("pushal");
+        input_staging_buffer_write_ptr = min(input_staging_buffer_write_ptr + 1, INPUT_BUFFER_LEN - 1);
+        __asm__ volatile ("popal");
+        if (c == '\n') {
+            // Copy to input buffer
+            for (uint32_t i = 0; i < input_staging_buffer_write_ptr; i++) {
+                input_buffer[input_buffer_write_ptr] = input_staging_buffer[i];
+                input_buffer_write_ptr = (input_buffer_write_ptr + 1) % INPUT_BUFFER_LEN;
+            }
+            input_staging_buffer_write_ptr = 0;
+            input_buffer_nonempty = true;
+        }
     }
     pic_send_eoi(1);
 }
@@ -238,9 +286,6 @@ void keyboard_interrupt_handler(
 __attribute__((naked))
 void syscall_interrupt_handler(void) {
   __asm__ volatile(
-      // TODO: we disable interrupts during syscalls... this is BAD! figure out
-      // how to allow nested interrupts (probably use a separate kernel stack
-      // per process -- this should be an easy fix)
       "cli\n"
       "pushal\n"
       // Push the address of the syscall_registers struct that we just

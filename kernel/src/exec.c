@@ -182,7 +182,8 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     new_proc->status = EMBRYO;
     new_proc->present = true;
 
-    // kprintf("new proc pid=%d: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
+    // kprintf("new proc name=%s pid=%d: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
+    //         new_proc->name,
     //         new_proc->pid,
     //         new_proc->registers.eip, new_proc->registers.cs, new_proc->registers.eflags, new_proc->registers.esp, new_proc->registers.ss);
     return new_proc;
@@ -206,6 +207,7 @@ enum exec_status exec(struct inode *prog) {
     }
     new_proc->status = RUNNABLE;
     new_proc->parent = 0xFFFFFFFF;
+    scheduler_proc_index = ((uint32_t) new_proc - (uint32_t) ptable) / sizeof(struct proc);
 
     // Ring 3 transition
     tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
