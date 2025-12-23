@@ -1,10 +1,26 @@
 #include "syscall_defs.h"
+#include "malloc.h"
+
+struct test {
+    int a;
+    int b;
+    int c;
+};
+
 void _start() {
+    // struct test *a = (struct test *) sbrk(sizeof(struct test));
+
+    struct test *a = malloc(sizeof(struct test));
+    a->a = 1;
+    a->b = 2;
+    a->c = 99;
+    free(a);
+
     char buf[100];
     int bytes;
     for (;;) {
         write("> ");
-        bytes = read(buf, 99);
+        bytes = read(buf, a->c);
         buf[bytes] = '\0';
         write(buf);
     }

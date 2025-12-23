@@ -9,8 +9,8 @@
 #include "kstring.h"
 #include "proc.h"
 
-uint32_t new_pgdir[PGDIR_LEN];
-uint32_t old_cr3;
+u32 new_pgdir[PGDIR_LEN];
+u32 old_cr3;
 struct elf_header elf_header;
 struct inode *prog;
 
@@ -29,13 +29,11 @@ struct proc *exec_helper(struct inode *prog_ptr) {
 
     // Use the last entry of kernel_pgtbl as a temporary buffer.
     // TODO: maybe move these to global scope, since they're also used in cleanup?
-    uint32_t *kernel_pgtbl = (uint32_t *) ((char *) kernel_id_pgtbl + HIGHER_HALF_BASE);
-    uint32_t *temp_page_ptr = (uint32_t *) (HIGHER_HALF_BASE + PGSIZE * (PGDIR_LEN - 1));
     
     // uint32_t new_pgdir[PGDIR_LEN] = {0};
     memset((char *) new_pgdir, 0, PGSIZE);
 
-    for (uint32_t i = 0; i < elf_header.phnum; i++) {
+    for (u32 i = 0; i < elf_header.phnum; i++) {
         struct program_header program_header;
         fs_read_bytes(
             prog,
@@ -50,15 +48,15 @@ struct proc *exec_helper(struct inode *prog_ptr) {
         // 2. add new page to page table using temp mapping
         // 3. if necessary, add page table to pgdir
         for (
-            uint32_t seg_addr = PAGE_ROUND_DOWN(program_header.vaddr);
+            u32 seg_addr = PAGE_ROUND_DOWN(program_header.vaddr);
             seg_addr < PAGE_ROUND_DOWN(program_header.vaddr + program_header.memsz) + PGSIZE;
             seg_addr += PGSIZE
         ) {
-            uint32_t pgtbl_addr;
+            u32 pgtbl_addr;
             bool new = false;
             // If there's no page table, allocate one
             if (new_pgdir[seg_addr >> 22] == 0) {
-                uint32_t new_page_table_addr = alloc_page() * PGSIZE;
+                u32 new_page_table_addr = alloc_page() * PGSIZE;
                 new_pgdir[seg_addr >> 22] = (new_page_table_addr & 0xfffff000) | 0x7;
                 pgtbl_addr = new_page_table_addr;
                 new = true;
@@ -73,7 +71,7 @@ struct proc *exec_helper(struct inode *prog_ptr) {
             }
 
             if (temp_page_ptr[(seg_addr >> 12) & 0x000003FF] == 0) {
-                uint32_t new_page_addr = alloc_page() * PGSIZE;
+                u32 new_page_addr = alloc_page() * PGSIZE;
 
                 temp_page_ptr[(seg_addr >> 12) & 0x000003FF] = new_page_addr | 0x7;
             }
@@ -82,15 +80,15 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     }
 
     // Allocate a stack and set up stack pointer
-    uint32_t stack_addr = alloc_page() * PGSIZE;
-    uint32_t kernel_stack_top_addr = alloc_page() * PGSIZE;
-    uint32_t kernel_stack_bottom_addr = alloc_page() * PGSIZE;
-    uint32_t stack_pgtbl_addr;
-    uint32_t stack_vaddr_low = HIGHER_HALF_BASE - PGSIZE;
+    u32 stack_addr = alloc_page() * PGSIZE;
+    u32 kernel_stack_top_addr = alloc_page() * PGSIZE;
+    u32 kernel_stack_bottom_addr = alloc_page() * PGSIZE;
+    u32 stack_pgtbl_addr;
+    u32 stack_vaddr_low = HIGHER_HALF_BASE - PGSIZE;
     // If there's no page table, allocate one
     bool new = false;
     if (new_pgdir[stack_vaddr_low >> 22] == 0) {
-        uint32_t new_stack_page_table_addr = alloc_page() * PGSIZE;
+        u32 new_stack_page_table_addr = alloc_page() * PGSIZE;
         new_pgdir[stack_vaddr_low >> 22] = (new_stack_page_table_addr & 0xfffff000) | 0x7;
         stack_pgtbl_addr = new_stack_page_table_addr;
         new = true;
@@ -109,14 +107,14 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     temp_page_ptr[PGTBL_LEN - 3] = kernel_stack_bottom_addr | 0x3;
     new_proc->kernel_stack = kernel_stack_top_addr;
     
-    new_pgdir[HIGHER_HALF_BASE >> 22] = ((uint32_t) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) & 0xfffff000) | 0x3;
+    new_pgdir[HIGHER_HALF_BASE >> 22] = ((u32) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) & 0xfffff000) | 0x3;
     
     // Copy the new pgdir into newly allocated page
-    uint32_t new_pgdir_addr = alloc_page() * PGSIZE;
+    u32 new_pgdir_addr = alloc_page() * PGSIZE;
     kernel_pgtbl[PGTBL_LEN - 1] = new_pgdir_addr | 0x3;
     flush_tlb();
     memcpy((char *) temp_page_ptr, (char *) new_pgdir, PGSIZE);
-    kernel_pgtbl[PGTBL_LEN - 1] = (uint32_t) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) | 0x3;
+    kernel_pgtbl[PGTBL_LEN - 1] = (u32) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) | 0x3;
     
     __asm__ volatile (
         "mov %%cr3, %%eax\n"
@@ -138,9 +136,9 @@ struct proc *exec_helper(struct inode *prog_ptr) {
 
 
     // Copy each segment into memory
-    for (uint32_t i = 0; i < elf_header.phnum; i++) {
+    for (u32 i = 0; i < elf_header.phnum; i++) {
         struct program_header program_header;
-        uint32_t ph_bytes = fs_read_bytes(
+        u32 ph_bytes = fs_read_bytes(
             prog,
             elf_header.phoff + i * sizeof(struct program_header),
             sizeof(program_header),
@@ -180,6 +178,8 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     new_proc->registers.eip = elf_header.entry;
 
     new_proc->status = EMBRYO;
+    // TODO: remove magic number
+    new_proc->brk = 0xF0000000;
     new_proc->present = true;
 
     // kprintf("new proc name=%s pid=%d: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
@@ -207,7 +207,7 @@ enum exec_status exec(struct inode *prog) {
     }
     new_proc->status = RUNNABLE;
     new_proc->parent = 0xFFFFFFFF;
-    scheduler_proc_index = ((uint32_t) new_proc - (uint32_t) ptable) / sizeof(struct proc);
+    scheduler_proc_index = ((u32) new_proc - (u32) ptable) / sizeof(struct proc);
 
     // Ring 3 transition
     tss.esp0 = HIGHER_HALF_BASE - PGSIZE;

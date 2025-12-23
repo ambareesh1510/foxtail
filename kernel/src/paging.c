@@ -3,24 +3,27 @@
 
 __attribute__((aligned(4096))) 
 __attribute__ ((section(".boot.data")))
-uint32_t kernel_pgdir[1024] = {0};
+u32 kernel_pgdir[1024] = {0};
 __attribute__((aligned(4096)))
 __attribute__ ((section(".boot.data")))
-uint32_t kernel_id_pgtbl[1024] = {0};
+u32 kernel_id_pgtbl[1024] = {0};
+
+u32 *kernel_pgtbl = (u32 *) ((char *) kernel_id_pgtbl + HIGHER_HALF_BASE);
+u32 *temp_page_ptr = (u32 *) (HIGHER_HALF_BASE + PGSIZE * (PGDIR_LEN - 1));
 
 // Address that the kernel is mapped to in physical memory.
 
 void 
 // __attribute__ ((section(".boot")))
-paging_setup(uint32_t *kernel_pgdir, uint32_t *kernel_id_pgtbl) {
+paging_setup(u32 *kernel_pgdir, u32 *kernel_id_pgtbl) {
   // Identity page the first megabyte.
-  uint32_t addr = 0x0;
-  for (uint32_t i = 0; i < PGTBL_LEN - 1; i++) {
+  u32 addr = 0x0;
+  for (u32 i = 0; i < PGTBL_LEN - 1; i++) {
     kernel_id_pgtbl[i] = (addr & 0xFFFFF000) | 0x3;
     addr += PGSIZE;
   }
 
-  uint32_t kernel_pgdir_entry = ((uint32_t)kernel_id_pgtbl & 0xfffff000) | 0x3;
+  u32 kernel_pgdir_entry = ((u32)kernel_id_pgtbl & 0xfffff000) | 0x3;
   kernel_pgdir[0] = kernel_pgdir_entry;
   // We use 768 because we are mapping the kernel to address 0xC0000000; the
   // first 10 bits are the page directory index, which is equal to 768.

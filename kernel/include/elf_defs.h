@@ -6,32 +6,32 @@
 #define ELF_MAGIC 0x464C457F
 
 struct elf_header {
-    uint32_t magic;
+    u32 magic;
     char ident[12];
-    uint16_t type;
-    uint16_t machine;
-    uint32_t version;
-    uint32_t entry;
-    uint32_t phoff;
-    uint32_t shoff;
-    uint32_t flags;
-    uint16_t ehsize;
-    uint16_t phentsize;
-    uint16_t phnum;
-    uint16_t shentsize;
-    uint16_t shnum;
-    uint16_t shstrndx;
+    u16 type;
+    u16 machine;
+    u32 version;
+    u32 entry;
+    u32 phoff;
+    u32 shoff;
+    u32 flags;
+    u16 ehsize;
+    u16 phentsize;
+    u16 phnum;
+    u16 shentsize;
+    u16 shnum;
+    u16 shstrndx;
 };
 
 struct program_header {
-    uint32_t type;
-    uint32_t offset;
-    uint32_t vaddr;
-    uint32_t paddr;
-    uint32_t filesz;
-    uint32_t memsz;
-    uint32_t flags;
-    uint32_t align;
+    u32 type;
+    u32 offset;
+    u32 vaddr;
+    u32 paddr;
+    u32 filesz;
+    u32 memsz;
+    u32 flags;
+    u32 align;
 };
 
 #endif /* ELF_DEFS_H */

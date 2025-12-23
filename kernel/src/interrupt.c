@@ -9,29 +9,29 @@
 #include "vga.h"
 
 char kb_char;
-volatile uint32_t ticks = 0;
+volatile u32 ticks = 0;
 
 struct __attribute__ ((packed)) idt_entry {
-    uint16_t offset_low;
-    uint16_t segment;
-    uint8_t reserved;
-    uint8_t flags;
-    uint16_t offset_high;
+    u16 offset_low;
+    u16 segment;
+    u8 reserved;
+    u8 flags;
+    u16 offset_high;
 };
 _Static_assert(sizeof(struct idt_entry) == 8, "IDT entry must be 8 bytes");
 
 struct __attribute__ ((packed)) idt_descriptor {
-    uint16_t size;
-    uint32_t offset;
+    u16 size;
+    u32 offset;
 };
 _Static_assert(sizeof(struct idt_descriptor) == 6, "IDT descriptor must be 6 bytes");
 
 struct __attribute__ ((packed)) interrupt_frame {
-    uint32_t ip;
-    uint32_t cs;
-    uint32_t flags;
-    uint32_t sp;
-    uint32_t ss;
+    u32 ip;
+    u32 cs;
+    u32 flags;
+    u32 sp;
+    u32 ss;
 };
 
 #define IDT_LENGTH 256
@@ -41,10 +41,10 @@ struct idt_entry idt[IDT_LENGTH];
 struct idt_descriptor idt_desc;
 
 void idt_write_entry(
-    uint32_t index,
-    uint32_t offset,
-    uint16_t segment,
-    uint8_t flags
+    u32 index,
+    u32 offset,
+    u16 segment,
+    u8 flags
 ) {
     idt[index].offset_low = offset & 0xFFFF;
     idt[index].offset_high = (offset >> 16) & 0xFFFF;
@@ -54,7 +54,7 @@ void idt_write_entry(
 }
 
 __attribute__ ((no_caller_saved_registers))
-void pic_send_eoi(uint8_t irq) {
+void pic_send_eoi(u8 irq) {
     if (irq >= 8) {
         // IRQs 8-15 are handled by the slave PIC
         outb(0xA0, 0x20);
@@ -68,7 +68,7 @@ struct __attribute__ ((packed)) regs_and_interrupt_frame {
     struct interrupt_frame frame;
 };
 
-uint32_t get_curr_proc_status() {
+u32 get_curr_proc_status() {
     return get_current_proc()->status;
 }
 
@@ -109,13 +109,13 @@ void timer_interrupt_handler() {
     );
 }
 
-uint32_t global_ra;
-uint32_t global_esp;
-uint32_t global_ebp;
+u32 global_ra;
+u32 global_esp;
+u32 global_ebp;
 
 char ctx_switch_temp_stack[2 * PGSIZE];
 
-uint32_t timer_interrupt_handler_inner(
+u32 timer_interrupt_handler_inner(
     struct regs_and_interrupt_frame *f
 ) {
     pic_send_eoi(0);
@@ -247,11 +247,11 @@ char kbd_US [128] =
 
 
 char input_staging_buffer[INPUT_BUFFER_LEN] = {0};
-uint32_t input_staging_buffer_write_ptr = 0;
+u32 input_staging_buffer_write_ptr = 0;
 
 char input_buffer[INPUT_BUFFER_LEN] = {0};
-uint32_t input_buffer_write_ptr = 0;
-uint32_t input_buffer_read_ptr = 0;
+u32 input_buffer_write_ptr = 0;
+u32 input_buffer_read_ptr = 0;
 
 bool input_buffer_nonempty = false;
 
@@ -259,7 +259,7 @@ __attribute__ ((interrupt))
 void keyboard_interrupt_handler(
     __attribute__ ((unused)) struct interrupt_frame *frame
 ) {
-    uint8_t scancode = inb(0x60);
+    u8 scancode = inb(0x60);
     kb_char = scancode;
     if (kbd_US[scancode] != 0) {
         char c = kbd_US[scancode];
@@ -272,7 +272,7 @@ void keyboard_interrupt_handler(
         __asm__ volatile ("popal");
         if (c == '\n') {
             // Copy to input buffer
-            for (uint32_t i = 0; i < input_staging_buffer_write_ptr; i++) {
+            for (u32 i = 0; i < input_staging_buffer_write_ptr; i++) {
                 input_buffer[input_buffer_write_ptr] = input_staging_buffer[i];
                 input_buffer_write_ptr = (input_buffer_write_ptr + 1) % INPUT_BUFFER_LEN;
             }
@@ -355,25 +355,25 @@ void pic_remap() {
 void 
 idt_load() {
     idt_desc.size = sizeof(idt) - 1;
-    idt_desc.offset = (uint32_t) &idt;
+    idt_desc.offset = (u32) &idt;
 
     idt_write_entry(
         0x20,
-        (uint32_t) timer_interrupt_handler,
+        (u32) timer_interrupt_handler,
         0x08,
         IDT_FLAG_INTERRUPT_GATE
     );
 
     idt_write_entry(
         0x21,
-        (uint32_t) keyboard_interrupt_handler,
+        (u32) keyboard_interrupt_handler,
         0x08,
         IDT_FLAG_INTERRUPT_GATE
     );
 
     idt_write_entry(
         0x80,
-        (uint32_t) syscall_interrupt_handler,
+        (u32) syscall_interrupt_handler,
         0x08,
         0xEE
     );

@@ -3,18 +3,18 @@
 
 
 __attribute__((section(".boot.data")))
-uint32_t page_free_map[PAGE_FREE_MAP_ENTRIES];
+u32 page_free_map[PAGE_FREE_MAP_ENTRIES];
 
-uint32_t *page_free_map_high = (uint32_t *) ((char *) page_free_map + HIGHER_HALF_BASE);
-uint32_t page_alloc_ptr = (UPPER_MEM_START / PGSIZE) / 32;
+u32 *page_free_map_high = (u32 *) ((char *) page_free_map + HIGHER_HALF_BASE);
+u32 page_alloc_ptr = (UPPER_MEM_START / PGSIZE) / 32;
 
-uint32_t total_alloced_pages = 0;
+u32 total_alloced_pages = 0;
 /// Allocates and returns the index of a page
-uint32_t alloc_page() {
+u32 alloc_page() {
     while (page_free_map_high[page_alloc_ptr] == 0) {
         page_alloc_ptr = (page_alloc_ptr + 1) % PAGE_FREE_MAP_ENTRIES;
     }
-    for (uint32_t i = 0; i < 32; i++) {
+    for (u32 i = 0; i < 32; i++) {
         if (page_free_map_high[page_alloc_ptr] & (1 << i)) {
             page_free_map_high[page_alloc_ptr] &= ~(1 << i);
             total_alloced_pages++;
@@ -30,8 +30,8 @@ uint32_t alloc_page() {
 
 /// Frees the page at the given index.
 /// Returns true on success, false on failure.
-uint32_t total_freed_pages = 0;
-bool free_page(uint32_t page_index) {
+u32 total_freed_pages = 0;
+bool free_page(u32 page_index) {
     if (page_free_map_high[page_index / 32] & (1 << (page_index % 32))) {
         return false;
     } else {

@@ -5,7 +5,7 @@
 #include "vga.h"
 #include "util.h"
 
-uint32_t cursor_row = 0, cursor_column = 0;
+u32 cursor_row = 0, cursor_column = 0;
 
 void kprint_next_line() {
     cursor_column = 0;
@@ -13,12 +13,12 @@ void kprint_next_line() {
     //     cursor_row++;
     // return;
     if (cursor_row == VGA_HEIGHT - 1) {
-        for (uint32_t y = 0; y < VGA_HEIGHT - 1; y++) {
-            for (uint32_t x = 0; x < VGA_WIDTH; x++) {
+        for (u32 y = 0; y < VGA_HEIGHT - 1; y++) {
+            for (u32 x = 0; x < VGA_WIDTH; x++) {
                 VGA[y * VGA_WIDTH + x] = VGA[(y + 1) * VGA_WIDTH + x];
             }
         }
-        for (uint32_t x = 0; x < VGA_WIDTH; x++) {
+        for (u32 x = 0; x < VGA_WIDTH; x++) {
             VGA[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = 0;
         }
     } else {
@@ -26,21 +26,21 @@ void kprint_next_line() {
     }
 }
 
-void kprint_uint32_hex(uint32_t c, char *buf) {
+void kprint_uint32_hex(u32 c, char *buf) {
     const char hex_digits[] = "0123456789ABCDEF";
-    uint32_t len = 0;
-    for (uint32_t i = 4; i < 32; i += 4) {
+    u32 len = 0;
+    for (u32 i = 4; i < 32; i += 4) {
         if (((c >> i) & 0xF) != 0) {
             len = i;
         }
     }
-    for (uint32_t i = 0; i <= len; i += 4) {
+    for (u32 i = 0; i <= len; i += 4) {
         buf[i / 4] = hex_digits[(c >> (len - i)) & 0xF];
     }
     buf[1 + len / 4] = '\0';
 }
 
-void kprint_uint32_dec(uint32_t value, char* buf) {
+void kprint_uint32_dec(u32 value, char* buf) {
     // Handle the special case of 0.
     if (value == 0) {
         buf[0] = '0';
@@ -99,12 +99,12 @@ void kprintf(const char *fmt, ...) {
     while (*curr != 0) {
         if (format_spec) {
             if (*curr == 'd') {
-                uint32_t val = va_arg(args, uint32_t);
+                u32 val = va_arg(args, u32);
                 char buf[11];
                 kprint_uint32_dec(val, buf);
                 kprint(buf);
             } else if (*curr == 'x') {
-                uint32_t val = va_arg(args, uint32_t);
+                u32 val = va_arg(args, u32);
                 char buf[9];
                 kprint_uint32_hex(val, buf);
                 kprint(buf);

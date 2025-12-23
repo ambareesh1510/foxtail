@@ -10,12 +10,12 @@ enum filetype {
 #define NDIRECT 23
 #define FILENAME_MAX_LEN 28
 struct file_inode_data {
-    uint32_t size;
-    uint32_t blocks[NDIRECT];
+    u32 size;
+    u32 blocks[NDIRECT];
 };
 struct directory_inode_data {
-    uint32_t num_entries;
-    uint32_t direct_files[NDIRECT];
+    u32 num_entries;
+    u32 direct_files[NDIRECT];
     /* TODO: add indirect block
     uint32_t direct_files[NDIRECT - 1];
     uint32_t indirect_block;
@@ -34,7 +34,7 @@ _Static_assert(sizeof(struct inode) == 128, "Bad inode size");
 
 struct fs_dirent {
     // char name[FILENAME_MAX_LEN];
-    uint32_t inode;
+    u32 inode;
 };
 _Static_assert(sizeof(struct fs_dirent) == 4, "Bad dirent size");
 

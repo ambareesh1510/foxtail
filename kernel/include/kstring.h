@@ -3,9 +3,9 @@
 
 #include "util.h"
 
-uint32_t strlen(const char *str);
-uint32_t strcmp(const char *a, const char *b);
-void memcpy(char *dst, const char *src, uint32_t size);
-void memset(char *dst, char val, uint32_t size);
+u32 strlen(const char *str);
+u32 strcmp(const char *a, const char *b);
+void memcpy(char *dst, const char *src, u32 size);
+void memset(char *dst, char val, u32 size);
 
 #endif /* STRING_H */

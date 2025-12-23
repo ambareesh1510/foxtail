@@ -2,22 +2,22 @@
 #include "paging.h"
 #include "util.h"
 
-typedef uint8_t gdt_entry[8];
+typedef u8 gdt_entry[8];
 
 #define GDT_LENGTH 6
 
 gdt_entry gdt[GDT_LENGTH];
 
 void gdt_write_entry(
-    uint32_t index,
+    u32 index,
     // 32-bit base
-    uint32_t base,
+    u32 base,
     // 20-bit limit
-    uint32_t limit,
+    u32 limit,
     // 8-bit access byte
-    uint8_t access_byte,
+    u8 access_byte,
     // 4-bit flags
-    uint8_t flags
+    u8 flags
 ) {
     gdt[index][0] = limit & 0xFF;
     gdt[index][1] = (limit >> 8) & 0xFF;
@@ -36,8 +36,8 @@ void gdt_write_entry(
 }
 
 struct __attribute__ ((packed)) gdt_descriptor {
-    uint16_t size;
-    uint32_t offset;
+    u16 size;
+    u32 offset;
 };
 
 struct gdt_descriptor gdt_desc;
@@ -51,7 +51,7 @@ gdt_load() {
     __asm__ volatile ("cli");
 
     gdt_desc.size = sizeof(gdt) - 1;
-    gdt_desc.offset = (uint32_t) &gdt;
+    gdt_desc.offset = (u32) &gdt;
 
     gdt_write_entry(0, 0, 0, 0, 0);
     gdt_write_entry(1, 0, 0xFFFFF, 0x9A, 0xC);
@@ -63,7 +63,7 @@ gdt_load() {
     // Don't set esp0, since it'll be set in exec/sched
     // tss.esp0 = (uint32_t) (tss_kernel_stack + PGSIZE);
 
-    gdt_write_entry(5, (uint32_t) (&tss), sizeof(tss) - 1, 0x89, 0);
+    gdt_write_entry(5, (u32) (&tss), sizeof(tss) - 1, 0x89, 0);
 
     __asm__ volatile ("lgdt %0" : : "m" (gdt_desc));
 

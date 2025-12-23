@@ -1,11 +1,11 @@
 #include "util.h"
 #include "kprintf.h"
 
-uint32_t min(uint32_t a, uint32_t b) {
+u32 min(u32 a, u32 b) {
     return (a < b) ? a : b;
 }
 
-uint32_t max(uint32_t a, uint32_t b) {
+u32 max(u32 a, u32 b) {
     return (a > b) ? a : b;
 }
 

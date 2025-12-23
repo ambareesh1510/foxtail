@@ -7,7 +7,7 @@ char fs[NUM_BLOCKS * BLOCK_SIZE] = {
 #embed "fs.bin"
 };
 
-struct inode *get_inode_at_idx(uint32_t idx) {
+struct inode *get_inode_at_idx(u32 idx) {
     return (struct inode *) (fs + idx * sizeof(struct inode));
 }
 
@@ -28,13 +28,13 @@ struct inode *get_inode_by_path(
         return 0;
     }
     char path_buf[FILENAME_MAX_LEN] = {0};
-    uint32_t i = 0;
+    u32 i = 0;
     for (; path[i] != '/' && path[i] != '\0'; i++) {
         path_buf[i] = path[i];
     }
     path_buf[i] = '\0';
     struct inode *next = 0;
-    for (uint32_t j = 0; j < base->data.directory_data.num_entries; j++) {
+    for (u32 j = 0; j < base->data.directory_data.num_entries; j++) {
         struct inode *temp = get_inode_at_idx(base->data.directory_data.direct_files[j]);
         if (strcmp(temp->name, path_buf) == 0) {
             next = temp;
@@ -48,13 +48,13 @@ struct inode *get_root_inode() {
     return get_inode_at_idx(0);
 }
 
-void tree_helper(struct inode *base, uint32_t depth) {
+void tree_helper(struct inode *base, u32 depth) {
     if (base == 0) {
         kprintf("Invalid inode\n");
         return;
     }
     if (depth > 0) {
-        for (uint32_t i = 0; i < depth - 1; i++) {
+        for (u32 i = 0; i < depth - 1; i++) {
             kprintf("   ");
         }
         kprintf("|- ");
@@ -63,7 +63,7 @@ void tree_helper(struct inode *base, uint32_t depth) {
         kprintf("%s\n", base->name);
     } else {
         kprintf("%s/\n", base->name);
-        for (uint32_t j = 0; j < base->data.directory_data.num_entries; j++) {
+        for (u32 j = 0; j < base->data.directory_data.num_entries; j++) {
             struct inode *next = get_inode_at_idx(base->data.directory_data.direct_files[j]);
             tree_helper(next, depth + 1);
         }
@@ -77,11 +77,11 @@ void tree(struct inode *base) {
 /// Get the block address that holds byte `offset` of `inode`.
 ///
 /// `inode` must be a file.
-uint32_t get_block_from_inode_offset(
+u32 get_block_from_inode_offset(
     struct inode *inode,
-    uint32_t offset
+    u32 offset
 ) {
-    uint32_t linear_block = offset / BLOCK_SIZE;
+    u32 linear_block = offset / BLOCK_SIZE;
     if (linear_block < NDIRECT) {
         return inode->data.file_data.blocks[linear_block];
     }
@@ -90,11 +90,11 @@ uint32_t get_block_from_inode_offset(
 }
 
 
-uint32_t fs_read_bytes(struct inode *inode, uint32_t offset, uint32_t size, char *buf) {
-    uint32_t total_bytes_read = 0;
-    uint32_t buf_offset = 0;
+u32 fs_read_bytes(struct inode *inode, u32 offset, u32 size, char *buf) {
+    u32 total_bytes_read = 0;
+    u32 buf_offset = 0;
     // Read bytes from the first block
-    uint32_t first_block_read_size = min(
+    u32 first_block_read_size = min(
         size,
         BLOCK_SIZE - (offset % BLOCK_SIZE)
     );
@@ -102,7 +102,7 @@ uint32_t fs_read_bytes(struct inode *inode, uint32_t offset, uint32_t size, char
         first_block_read_size, 
         inode->data.file_data.size - offset
     );
-    uint32_t first_block_index = get_block_from_inode_offset(inode, offset);
+    u32 first_block_index = get_block_from_inode_offset(inode, offset);
     memcpy(buf,  fs + first_block_index * BLOCK_SIZE + offset % BLOCK_SIZE, first_block_read_size);
     size -= first_block_read_size;
     offset += first_block_read_size;
@@ -111,12 +111,12 @@ uint32_t fs_read_bytes(struct inode *inode, uint32_t offset, uint32_t size, char
 
     // Read bytes from each remaining block
     for (;;) {
-        uint32_t block_read_size = min(size, BLOCK_SIZE);
+        u32 block_read_size = min(size, BLOCK_SIZE);
         block_read_size = min(
             block_read_size,
             inode->data.file_data.size - offset
         );
-        uint32_t block_index = get_block_from_inode_offset(inode, offset);
+        u32 block_index = get_block_from_inode_offset(inode, offset);
         memcpy(
             buf + buf_offset,
             fs + block_index * BLOCK_SIZE,
@@ -150,7 +150,7 @@ void ls_entry(struct inode *entry) {
 }
 
 void ls(struct inode *base) {
-    for (uint32_t j = 0; j < base->data.directory_data.num_entries; j++) {
+    for (u32 j = 0; j < base->data.directory_data.num_entries; j++) {
         struct inode *next = get_inode_at_idx(base->data.directory_data.direct_files[j]);
         ls_entry(next);
     }

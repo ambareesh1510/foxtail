@@ -12,16 +12,16 @@
 #include "kstring.h"
 
 struct higher_half_info {
-    uint32_t mem_lower;
-    uint32_t mem_upper;
-    uint32_t mmap_len;
-    uint32_t mmap_addr;
+    u32 mem_lower;
+    u32 mem_upper;
+    u32 mmap_len;
+    u32 mmap_addr;
 };
 
 void higher_half_entry();
 
 __attribute__ ((section(".boot.data")))
-uint32_t free_pages = 0;
+u32 free_pages = 0;
 
 void 
 __attribute__ ((section(".boot.text")))
@@ -32,19 +32,19 @@ kernel_main(void) {
         : "=r" (multiboot_info)
     );
     if (multiboot_info->flags & (1 << 6)) {
-        uint32_t total_len = 0;
+        u32 total_len = 0;
         struct memory_map *entry = (struct memory_map *) multiboot_info->mmap_addr;
         while (total_len < multiboot_info->mmap_length) {
             total_len += entry->size + 4;
             if (entry->type == 1) {
                 for (
-                    uint32_t curr_addr = PAGE_ROUND_DOWN(entry->base_addr_low);
+                    u32 curr_addr = PAGE_ROUND_DOWN(entry->base_addr_low);
                     curr_addr < PAGE_ROUND_DOWN(entry->base_addr_low) + entry->length_low;
                     curr_addr += PGSIZE
                 ) {
                     if (curr_addr < 0x400000) continue;
-                    uint32_t entry = (curr_addr / PGSIZE) / 32;
-                    uint32_t offset = (curr_addr / PGSIZE) % 32;
+                    u32 entry = (curr_addr / PGSIZE) / 32;
+                    u32 offset = (curr_addr / PGSIZE) % 32;
                     page_free_map[entry] |= 1 << offset;
                     free_pages++;
                 }
@@ -53,12 +53,12 @@ kernel_main(void) {
         }
     } else if (multiboot_info->flags & (1 << 0)) {
         for (
-            uint32_t curr_addr = UPPER_MEM_START;
+            u32 curr_addr = UPPER_MEM_START;
             curr_addr < UPPER_MEM_START + multiboot_info->mem_upper;
             curr_addr += PGSIZE
         ) {
-            uint32_t entry = (curr_addr / PGSIZE) / 32;
-            uint32_t offset = (curr_addr / PGSIZE) % 32;
+            u32 entry = (curr_addr / PGSIZE) / 32;
+            u32 offset = (curr_addr / PGSIZE) % 32;
             page_free_map[entry] |= 1 << offset;
         }
     } else {
@@ -82,7 +82,7 @@ kernel_main(void) {
     // );
     __asm__ volatile(
         "jmp *%0\n"
-        : : "r"((uint32_t) higher_half_entry)
+        : : "r"((u32) higher_half_entry)
     );
     // higher_half_entry();
 //     void (*hh_entry)(void) =
@@ -115,7 +115,7 @@ higher_half_entry() {
     idt_load();
 
     // kprintf("total free pages: %x\n", free_pages);
-    kprintf("Total free pages: %d\n", *(uint32_t *) ((char *) &free_pages + HIGHER_HALF_BASE));
+    kprintf("Total free pages: %d\n", *(u32 *) ((char *) &free_pages + HIGHER_HALF_BASE));
     // panic("");
     //
     struct inode *idle_inode = get_inode_by_path(get_root_inode(), "idle");

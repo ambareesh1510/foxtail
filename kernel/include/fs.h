@@ -5,7 +5,7 @@
 
 extern char fs[NUM_BLOCKS * BLOCK_SIZE];
 
-struct inode *get_inode_at_idx(uint32_t idx);
+struct inode *get_inode_at_idx(u32 idx);
 
 
 struct inode *get_inode_by_path(
@@ -18,6 +18,6 @@ struct inode *get_root_inode();
 void tree(struct inode *base);
 void ls(struct inode *base);
 
-uint32_t fs_read_bytes(struct inode *inode, uint32_t offset, uint32_t size, char *buf);
+u32 fs_read_bytes(struct inode *inode, u32 offset, u32 size, char *buf);
 
 #endif /* FS_H */

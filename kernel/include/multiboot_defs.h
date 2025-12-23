@@ -4,44 +4,44 @@
 #include "util.h"
 
 struct aout_symbol_table {
- uint32_t tabsize;
- uint32_t strsize;
- uint32_t addr;
- uint32_t reserved;
+ u32 tabsize;
+ u32 strsize;
+ u32 addr;
+ u32 reserved;
 };
 
 /* The section header table for ELF. */
 struct elf_section_header_table {
- uint32_t num;
- uint32_t size;
- uint32_t addr;
- uint32_t shndx;
+ u32 num;
+ u32 size;
+ u32 addr;
+ u32 shndx;
 };
 
 struct multiboot_info {
- uint32_t flags;
- uint32_t mem_lower;
- uint32_t mem_upper;
- uint32_t boot_device;
- uint32_t cmdline;
- uint32_t mods_count;
- uint32_t mods_addr;
+ u32 flags;
+ u32 mem_lower;
+ u32 mem_upper;
+ u32 boot_device;
+ u32 cmdline;
+ u32 mods_count;
+ u32 mods_addr;
  union {
    struct aout_symbol_table aout_sym;
    struct elf_section_header_table elf_sec;
  } u;
- uint32_t mmap_length;
- uint32_t mmap_addr;
+ u32 mmap_length;
+ u32 mmap_addr;
 };
 
 struct memory_map
 {
- uint32_t size;
- uint32_t base_addr_low;
- uint32_t base_addr_high;
- uint32_t length_low;
- uint32_t length_high;
- uint32_t type;
+ u32 size;
+ u32 base_addr_low;
+ u32 base_addr_high;
+ u32 length_low;
+ u32 length_high;
+ u32 type;
 };
 
 #endif /* MULTIBOOT_DEFS_H */

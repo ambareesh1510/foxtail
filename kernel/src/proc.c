@@ -7,13 +7,13 @@
 
 struct proc ptable[MAX_PROCS] = {0};
 
-uint32_t curr_pid = 0;
+u32 curr_pid = 0;
 bool proc_exists = false;
 
 // Return 0 if no proc available.
 struct proc *alloc_proc() {
     proc_exists = true;
-    for (uint32_t i = 0; i < MAX_PROCS; i++) {
+    for (u32 i = 0; i < MAX_PROCS; i++) {
         if (ptable[i].status == UNUSED) {
             ptable[i].pid = curr_pid;
             // kprintf("just allocated pid %d\n", curr_pid);
@@ -34,11 +34,11 @@ bool release_proc(struct proc *proc) {
     }
 }
 
-volatile uint32_t scheduler_proc_index;
+volatile u32 scheduler_proc_index;
 // TODO: figure out how to schedule idle process only when there are no other runnable processes
 void scheduler() {
-    uint32_t i = scheduler_proc_index;
-    uint32_t since_last_runnable = 0;
+    u32 i = scheduler_proc_index;
+    u32 since_last_runnable = 0;
     for (;;) {
         since_last_runnable++;
         i = (i + 1) % MAX_PROCS;

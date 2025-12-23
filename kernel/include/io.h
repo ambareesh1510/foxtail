@@ -4,9 +4,9 @@
 #include "util.h"
 
 __attribute__ ((no_caller_saved_registers))
-uint8_t inb(uint16_t port);
+u8 inb(u16 port);
 
 __attribute__ ((no_caller_saved_registers))
-void outb(uint16_t port, uint8_t val);
+void outb(u16 port, u8 val);
 
 #endif /* IO_H */

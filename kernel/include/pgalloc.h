@@ -9,12 +9,12 @@
 #define PAGE_FREE_MAP_ENTRIES ((MEM_MAX / PGSIZE) / 32)
 
 __attribute__((section(".boot.data")))
-extern uint32_t page_free_map[PAGE_FREE_MAP_ENTRIES];
-extern uint32_t *page_free_map_high;
+extern u32 page_free_map[PAGE_FREE_MAP_ENTRIES];
+extern u32 *page_free_map_high;
 
 [[nodiscard]]
-uint32_t alloc_page();
+u32 alloc_page();
 
-bool free_page(uint32_t page_index);
+bool free_page(u32 page_index);
 
 #endif /* PGALLOC_H */

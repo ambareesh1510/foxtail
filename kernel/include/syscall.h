@@ -4,7 +4,7 @@
 #include "util.h"
 
 struct syscall_registers {
-    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
+    u32 edi, esi, ebp, esp, ebx, edx, ecx, eax;
 };
 
 void syscall_interrupt_handler_inner(struct syscall_registers *s);

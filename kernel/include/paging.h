@@ -13,14 +13,17 @@
 
 extern __attribute__((aligned(4096))) 
 __attribute__ ((section(".boot.data")))
-uint32_t kernel_pgdir[1024];
+u32 kernel_pgdir[1024];
 extern __attribute__((aligned(4096)))
 __attribute__ ((section(".boot.data")))
-uint32_t kernel_id_pgtbl[1024];
+u32 kernel_id_pgtbl[1024];
+
+extern u32 *kernel_pgtbl;
+extern u32 *temp_page_ptr;
 
 // void paging_setup();
 void 
 __attribute__ ((section(".boot.text")))
-paging_setup(uint32_t *kernel_pgdir, uint32_t *kernel_id_pgtbl);
+paging_setup(u32 *kernel_pgdir, u32 *kernel_id_pgtbl);
 
 #endif /* PAGING_H */

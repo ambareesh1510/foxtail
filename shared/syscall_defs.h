@@ -8,6 +8,7 @@ enum syscall_code {
     SYS_GETPID,
     SYS_EXIT,
     SYS_WAIT,
+    SYS_SBRK,
 };
 
 // Write the null-terminated string `str` to stdout.
@@ -84,6 +85,19 @@ static inline int wait(int pid) {
         : "memory"
     );
     return ret;
+}
+
+// Shift break by `delta` bytes (rounded up to the nearest multiple of page size (4096)).
+// Returns: old break.
+static inline char *sbrk(int delta) {
+    char *ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_SBRK), "b"(delta)
+        : "memory"
+    );
+    return ret; 
 }
 
 #endif /* SYSCALL_DEFS_H */

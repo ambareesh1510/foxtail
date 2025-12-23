@@ -6,13 +6,13 @@
 
 struct saved_registers {
     // Set manually
-    uint32_t eax, ebx, ecx, edx, esi, edi;
-    uint32_t ebp; 
+    u32 eax, ebx, ecx, edx, esi, edi;
+    u32 ebp; 
     // uint16_t ds, es, fs, gs;
     // Set by iret
-    uint32_t esp, eip;
-    uint16_t cs, ss;
-    uint32_t eflags;
+    u32 esp, eip;
+    u16 cs, ss;
+    u32 eflags;
 };
 
 enum proc_status {
@@ -26,22 +26,23 @@ enum proc_status {
 
 struct proc {
     bool present;
-    uint32_t pid;
-    uint32_t cr3;
+    u32 pid;
+    u32 cr3;
     struct saved_registers registers;
     char name[FILENAME_MAX_LEN];
     // Physical address of the kernel stack. Unused for now
-    uint32_t kernel_stack;
+    u32 kernel_stack;
     enum proc_status status;
-    uint32_t parent;
-    uint32_t waiting_on;
-    uint32_t kernel_sp;
-    uint32_t kernel_bp;
+    u32 parent;
+    u32 waiting_on;
+    u32 kernel_sp;
+    u32 kernel_bp;
+    u32 brk;
 };
 
 #define MAX_PROCS 256
 extern struct proc ptable[MAX_PROCS];
-extern volatile uint32_t scheduler_proc_index;
+extern volatile u32 scheduler_proc_index;
 
 extern bool proc_exists;
 struct proc *alloc_proc();

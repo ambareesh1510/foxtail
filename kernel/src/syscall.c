@@ -5,13 +5,16 @@
 #include "interrupt.h"
 #include "kprintf.h"
 #include "paging.h"
+#include "pgalloc.h"
 #include "proc.h"
 #include "syscall_defs.h"
+#include "util.h"
+#include "kstring.h"
 #include "vga.h"
 
 // TODO: write a page fault handler that kills the process so that we can't access random memory
 
-bool is_valid_user_addr(uint32_t addr) {
+bool is_valid_user_addr(u32 addr) {
     return addr < HIGHER_HALF_BASE;
 }
 
@@ -48,8 +51,8 @@ void sys_read(struct syscall_registers *s) {
         __asm__ volatile ("int $0x20");
     }
     char *buf = (char *) s->ebx;
-    uint32_t target = s->ecx;
-    uint32_t count = 0;
+    u32 target = s->ecx;
+    u32 count = 0;
     for (; count < target; count++) {
         if (!input_buffer_nonempty) {
             break;
@@ -104,9 +107,9 @@ void sys_exit(struct syscall_registers *s) {
 // Return eax = 0 on success, eax = -1 on failure.
 void sys_wait(struct syscall_registers *s) {
     struct proc *curr_proc = get_current_proc();
-    uint32_t pid = s->ebx;
+    u32 pid = s->ebx;
     bool found = false;
-    uint32_t i;
+    u32 i;
     for (i = 0; i < MAX_PROCS; i++) {
         if (ptable[i].pid == pid) {
             if (ptable[i].parent == get_current_proc()->pid) {
@@ -123,6 +126,66 @@ void sys_wait(struct syscall_registers *s) {
     } else {
         s->eax = -1;
     }
+}
+
+u32 sbrk_temp_pgdir[PGDIR_LEN];
+void sys_sbrk(struct syscall_registers *s) {
+    struct proc *curr_proc = get_current_proc();
+
+    // Round up brk_delta.
+    i32 brk_delta = ((s->ebx + PGSIZE - 1) / PGSIZE) * PGSIZE;
+    if (brk_delta == 0) {
+        return;
+    } 
+
+    // Start allocating at 0xF0000000.
+    kernel_pgtbl[PGDIR_LEN - 1] = curr_proc->cr3 | 0x3;
+    flush_tlb();
+    memcpy((char *) sbrk_temp_pgdir, (char *) temp_page_ptr, PGSIZE);
+    
+    if (brk_delta < 0) {
+        brk_delta = max(brk_delta, 0xF0000000 - curr_proc->brk);
+        for (u32 addr = curr_proc->brk - PGSIZE; addr >= curr_proc->brk + brk_delta; addr -= PGSIZE) {
+            // Temp-map the pgtbl, dealloc the page
+            u32 pgtbl_phys_addr = sbrk_temp_pgdir[(addr >> 22) & 0x03FF];
+            kernel_pgtbl[PGDIR_LEN - 1] = pgtbl_phys_addr;
+            flush_tlb();
+            u32 page_phys_addr = temp_page_ptr[(addr >> 12) & 0x03FF];
+            free_page(page_phys_addr / PGSIZE);
+            temp_page_ptr[(addr >> 12) & 0x03FF] = 0;
+            // If addr is aligned to a pgdir entry boundary, dealloc the pgtbl
+            if (addr == ((addr >> 22) << 22)) {
+                free_page(pgtbl_phys_addr / PGSIZE);
+                sbrk_temp_pgdir[(addr >> 22) & 0x03FF] = 0;
+            }
+        }
+    } else if (brk_delta > 0) {
+        for (u32 addr = curr_proc->brk; addr < curr_proc->brk + brk_delta; addr += PGSIZE) {
+            u32 pgtbl_phys_addr = sbrk_temp_pgdir[(addr >> 22) & 0x03FF];
+            bool new = false;
+            // If pgdir doesn't exist, allocate one
+            // TODO: you can do this by checking if aligned to a page boundary
+            if (!(pgtbl_phys_addr & 0x1)) {
+                pgtbl_phys_addr = alloc_page() * PGSIZE;
+                sbrk_temp_pgdir[(addr >> 22) & 0x03FF] = pgtbl_phys_addr | 0x7;
+                new = true;
+            }
+            kernel_pgtbl[PGDIR_LEN - 1] = pgtbl_phys_addr | 0x3;
+            flush_tlb();
+            if (new) {
+                memset((char *) temp_page_ptr, 0, PGSIZE);
+            }
+            temp_page_ptr[(addr >> 12) & 0x03FF] = alloc_page() * PGSIZE | 0x7;
+        }
+    }
+
+    kernel_pgtbl[PGDIR_LEN - 1] = curr_proc->cr3 | 0x3;
+    flush_tlb();
+    memcpy((char *) temp_page_ptr, (char *) sbrk_temp_pgdir, PGSIZE);
+
+    // Update brk value in proc struct.
+    s->eax = curr_proc->brk;
+    curr_proc->brk += brk_delta;
 }
 
 void syscall_interrupt_handler_inner(struct syscall_registers *s) {
@@ -145,6 +208,9 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
             break;
         case SYS_WAIT:
             sys_wait(s);
+            break;
+        case SYS_SBRK:
+            sys_sbrk(s);
             break;
         default:
             kprintf("Invalid syscall code: %d\n", s->eax);

@@ -2,12 +2,16 @@
 #define UTIL_H
 
 typedef unsigned long size_t;
-typedef unsigned int  uint32_t;
-typedef unsigned short uint16_t;
-typedef unsigned char uint8_t;
+typedef unsigned int  u32;
+typedef unsigned short u16;
+typedef unsigned char u8;
 
-uint32_t min(uint32_t a, uint32_t b);
-uint32_t max(uint32_t a, uint32_t b);
+typedef int  i32;
+typedef short i16;
+typedef char i8;
+
+u32 min(u32 a, u32 b);
+u32 max(u32 a, u32 b);
 
 __attribute__ ((noreturn)) void panic(char *msg);
 
