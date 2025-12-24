@@ -144,7 +144,8 @@ struct proc *exec_helper(struct inode *prog_ptr) {
             sizeof(program_header),
             (char *) (&program_header)
         );
-        fs_read_bytes(prog, program_header.offset, program_header.memsz, (char *) program_header.vaddr);
+        fs_read_bytes(prog, program_header.offset, program_header.filesz, (char *) program_header.vaddr);
+        memset((char *) (program_header.vaddr + program_header.filesz), 0, program_header.memsz - program_header.filesz);
     }
 
     // Restore the old cr3
@@ -179,7 +180,8 @@ struct proc *exec_helper(struct inode *prog_ptr) {
 
     new_proc->status = EMBRYO;
     // TODO: remove magic number
-    new_proc->brk = 0xF0000000;
+    new_proc->brk = 0x80000000;
+    new_proc->cwd = get_root_inode();
     new_proc->present = true;
 
     // kprintf("new proc name=%s pid=%d: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",

@@ -1,15 +1,15 @@
-#include "kstring.h"
-#include "kprintf.h"
+#ifndef STRING_H
+#define STRING_H
 
-u32 strlen(const char *str) {
-    u32 len = 0;
+unsigned int strlen(const char *str) {
+    unsigned int len = 0;
     while (str[len] != '\0') {
         len++;
     }
     return len;
 }
 
-u32 strcmp(const char *a, const char *b) {
+unsigned int strcmp(const char *a, const char *b) {
     int i = 0;
     for (;;) {
         if (a[i] == '\0' || b[i] == '\0') {
@@ -29,7 +29,7 @@ void strcpy(char *dst, char *src) {
     if (dst == 0 || src == 0) {
         return;
     }
-    u32 i = 0;
+    unsigned int i = 0;
     while (1) {
         dst[i] = src[i];
         if (src[i] == '\0') {
@@ -39,12 +39,14 @@ void strcpy(char *dst, char *src) {
     }
 }
 
-void memcpy(char *dst, const char *src, u32 size) {
+void memcpy(char *dst, const char *src, unsigned int size) {
     while (size--) {
         *dst++ = *src++;
     }
 }
 
-void memset(char *dst, char val, u32 size) {
+void memset(char *dst, char val, unsigned int size) {
     while (size--) *dst++ = val;
 }
+
+#endif /* STRING_H */

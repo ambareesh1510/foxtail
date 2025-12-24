@@ -38,6 +38,7 @@ struct proc {
     u32 kernel_sp;
     u32 kernel_bp;
     u32 brk;
+    struct inode *cwd;
 };
 
 #define MAX_PROCS 256

@@ -9,6 +9,8 @@ enum syscall_code {
     SYS_EXIT,
     SYS_WAIT,
     SYS_SBRK,
+    SYS_CD,
+    SYS_PWD,
 };
 
 // Write the null-terminated string `str` to stdout.
@@ -95,6 +97,28 @@ static inline char *sbrk(int delta) {
         "int $0x80"
         : "=a"(ret)
         : "a"(SYS_SBRK), "b"(delta)
+        : "memory"
+    );
+    return ret; 
+}
+
+static inline int cd(const char *path) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_CD), "b"(path)
+        : "memory"
+    );
+    return ret; 
+}
+
+static inline int pwd(char *buf, unsigned int size) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_PWD), "b"(buf), "c"(size)
         : "memory"
     );
     return ret; 

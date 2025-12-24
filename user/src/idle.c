@@ -2,7 +2,7 @@
 
 void _start() {
     for (;;) {
-        // write("idle\n");
+        // TODO: this proc should run in kernel space, so it can hlt
         // __asm__ volatile ("hlt");
     }
 }

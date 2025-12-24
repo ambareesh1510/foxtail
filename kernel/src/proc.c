@@ -15,6 +15,7 @@ struct proc *alloc_proc() {
     proc_exists = true;
     for (u32 i = 0; i < MAX_PROCS; i++) {
         if (ptable[i].status == UNUSED) {
+            ptable[i] = (struct proc) {0};
             ptable[i].pid = curr_pid;
             // kprintf("just allocated pid %d\n", curr_pid);
             curr_pid++;

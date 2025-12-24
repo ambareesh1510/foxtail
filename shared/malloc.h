@@ -44,7 +44,7 @@ void *malloc(unsigned int size) {
     size = align_up(size);
     
     struct block *block;
-    if (!free_list) {
+    if (free_list == 0) {
         block = request_mem(size);
         free_list = block;
     } else {

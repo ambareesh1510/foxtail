@@ -16,9 +16,9 @@ struct inode *get_inode_by_path(
     const char *path
 ) {
     if (base == 0) {
-        return base;
+        return 0;
     }
-    if (path[0] == '/') {
+    while (path[0] == '/') {
         path++;
     }
     if (strlen(path) == 0) {
@@ -34,11 +34,17 @@ struct inode *get_inode_by_path(
     }
     path_buf[i] = '\0';
     struct inode *next = 0;
-    for (u32 j = 0; j < base->data.directory_data.num_entries; j++) {
-        struct inode *temp = get_inode_at_idx(base->data.directory_data.direct_files[j]);
-        if (strcmp(temp->name, path_buf) == 0) {
-            next = temp;
-            break;
+    if (strcmp(path_buf, ".") == 0) {
+        next = base;
+    } else if (strcmp(path_buf, "..") == 0) {
+        next = get_inode_at_idx(base->parent);
+    } else {
+        for (u32 j = 0; j < base->data.directory_data.num_entries; j++) {
+            struct inode *temp = get_inode_at_idx(base->data.directory_data.direct_files[j]);
+            if (strcmp(temp->name, path_buf) == 0) {
+                next = temp;
+                break;
+            }
         }
     }
     return get_inode_by_path(next, path + i);

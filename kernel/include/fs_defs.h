@@ -7,7 +7,7 @@ enum filetype {
     FT_FILE,
     FT_DIRECTORY,
 };
-#define NDIRECT 23
+#define NDIRECT 22
 #define FILENAME_MAX_LEN 28
 struct file_inode_data {
     u32 size;
@@ -28,6 +28,7 @@ union inode_data {
 struct inode {
     char name[FILENAME_MAX_LEN];
     enum filetype type;
+    u32 parent;
     union inode_data data;
 };
 _Static_assert(sizeof(struct inode) == 128, "Bad inode size");

@@ -75,7 +75,7 @@ void sys_spawn_proc(struct syscall_registers *s) {
         return;
     }
     // TODO: update base of this to be cwd
-    struct inode *prog = get_inode_by_path(get_root_inode(), (char *) s->ebx);
+    struct inode *prog = get_inode_by_path(get_current_proc()->cwd, (char *) s->ebx);
     if (prog == 0) {
         s->eax = -1;
         return;
@@ -84,7 +84,10 @@ void sys_spawn_proc(struct syscall_registers *s) {
     if (new_proc == 0) {
         s->eax = -1;
     } else {
-        new_proc->parent = get_current_proc()->pid;
+        struct proc *curr_proc = get_current_proc();
+        new_proc->parent = curr_proc->pid;
+        new_proc->cwd = curr_proc->cwd;
+        kprintf("Spawn %d\n", new_proc->pid);
         s->eax = new_proc->pid;
     }
 }
@@ -138,13 +141,13 @@ void sys_sbrk(struct syscall_registers *s) {
         return;
     } 
 
-    // Start allocating at 0xF0000000.
+    // Start allocating at 0x80000000.
     kernel_pgtbl[PGDIR_LEN - 1] = curr_proc->cr3 | 0x3;
     flush_tlb();
     memcpy((char *) sbrk_temp_pgdir, (char *) temp_page_ptr, PGSIZE);
     
     if (brk_delta < 0) {
-        brk_delta = max(brk_delta, 0xF0000000 - curr_proc->brk);
+        brk_delta = max(brk_delta, 0x80000000 - curr_proc->brk);
         for (u32 addr = curr_proc->brk - PGSIZE; addr >= curr_proc->brk + brk_delta; addr -= PGSIZE) {
             // Temp-map the pgtbl, dealloc the page
             u32 pgtbl_phys_addr = sbrk_temp_pgdir[(addr >> 22) & 0x03FF];
@@ -188,6 +191,61 @@ void sys_sbrk(struct syscall_registers *s) {
     curr_proc->brk += brk_delta;
 }
 
+// Changes directory to the dir specified in ebx.
+// Returns eax = -1 on failure, eax = 0 on success.
+void sys_cd(struct syscall_registers *s) {
+    if (!is_valid_user_addr(s->ebx)) {
+        s->eax = -1;
+        return;
+    }
+    struct proc *curr_proc = get_current_proc();
+    struct inode *new_cwd = get_inode_by_path(curr_proc->cwd, (char *) s->ebx);
+    if (new_cwd == 0) {
+        s->eax = -1;
+        return;
+    }
+    curr_proc->cwd = new_cwd;
+    s->eax = 0;
+}
+
+// Writes the full path of the pwd into the buf at ebx (whose length is ecx).
+// Fails if the buf isn't large enough to accomodate the full path + null terminator.
+void sys_pwd(struct syscall_registers *s) {
+    // TODO: add "." and ".." entries in directory inode
+
+    // Recurse up the tree and compute the length of the path
+    struct proc *curr_proc = get_current_proc();
+    u32 len = 0;
+    struct inode *curr = curr_proc->cwd;
+    while (strcmp(curr->name, "~") != 0) {
+        // strlen + path separator ('/')
+        len += strlen(curr->name) + 1;
+        curr = get_inode_at_idx(curr->parent);
+    }
+    // strlen + null terminator
+    len += strlen(curr->name) + 1;
+    if (len > s->ecx) {
+        s->eax = -1;
+        return;
+    }
+    // Then copy from the back
+    curr = curr_proc->cwd;
+    char *buf = (char *) s->ebx;
+    len -= 1;
+    buf[len] = '\0';
+    while (strcmp(curr->name, "~") != 0) {
+        u32 name_len = strlen(curr->name);
+        len -= name_len;
+        memcpy(buf + len, curr->name, name_len);
+        len -= 1;
+        buf[len] = '/';
+        curr = get_inode_at_idx(curr->parent);
+    }
+    memcpy(buf, curr->name, strlen(curr->name));
+    s->eax = 0;
+    return;
+}
+
 void syscall_interrupt_handler_inner(struct syscall_registers *s) {
     // kprintf("Syscall with eax = %x, ebx = %x, ecx = %x, edx = %x\n", s->eax, s->ebx, s->ecx, s->edx);
     switch (s->eax) {
@@ -211,6 +269,12 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
             break;
         case SYS_SBRK:
             sys_sbrk(s);
+            break;
+        case SYS_CD:
+            sys_cd(s);
+            break;
+        case SYS_PWD:
+            sys_pwd(s);
             break;
         default:
             kprintf("Invalid syscall code: %d\n", s->eax);

@@ -78,6 +78,7 @@ int process_dir(
     struct inode new_inode = {0};
     if (strcmp(name, FS_DIR) == 0) {
         strcpy(new_inode.name, "~");
+        new_inode.parent = 0;
     } else {
         strncpy(new_inode.name, get_filename(name), FILENAME_MAX_LEN - 1);
     }
@@ -105,6 +106,7 @@ int process_dir(
         if (inode_idx == 0) {
             continue;
         }
+        inodes[inode_idx].parent = reserved_inode_idx;
         new_inode.data.directory_data.direct_files[new_inode.data.directory_data.num_entries] = inode_idx;
         new_inode.data.directory_data.num_entries++;
     }
