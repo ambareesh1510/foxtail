@@ -3,14 +3,16 @@
 
 #include "util.h"
 
-#define FS_ROOT_PATH "@"
+#define FS_ROOT_PATH "-"
 
 enum filetype {
+    FT_UNALLOCATED,
     FT_FILE,
     FT_DIRECTORY,
 };
 #define NDIRECT 22
 #define FILE_MAX_SIZE (NDIRECT * BLOCK_SIZE)
+#define DIR_MAX_ENTRIES (NDIRECT)
 #define FILENAME_MAX_LEN 28
 struct file_inode_data {
     u32 size;

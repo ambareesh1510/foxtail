@@ -8,6 +8,7 @@ char fs[NUM_BLOCKS * BLOCK_SIZE] = {
 };
 
 char *free_block_bitmap = fs;
+struct inode *inodes = (struct inode *) (fs + NUM_BITMAP_BLOCKS * BLOCK_SIZE);
 
 i32 alloc_block() {
     for (u32 i = 0; i < NUM_BLOCKS; i++) {
@@ -29,9 +30,36 @@ bool free_block(u32 block_idx) {
     }
 }
 
+struct inode *alloc_inode() {
+    for (u32 i = 0; i < (NUM_INODE_BLOCKS * BLOCK_SIZE) / sizeof(struct inode); i++) {
+        if (inodes[i].type == FT_UNALLOCATED) {
+            return inodes + i;
+        }
+    }
+    return 0;
+}
+
+i32 free_inode(struct inode *inode) {
+    if (inode->type == FT_FILE) {
+        u32 num_blocks = (inode->data.file_data.size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        for (u32 i = 0; i < num_blocks; i++) {
+            free_block(inode->data.file_data.blocks[i]);
+        }
+    } else if (inode->type == FT_DIRECTORY) {
+        if (inode->data.directory_data.num_entries != 0) {
+            return -1;
+        }
+    }
+    inode->type = FT_UNALLOCATED;
+    return 0;
+}
+
 struct inode *get_inode_at_idx(u32 idx) {
     return (struct inode *) (fs + NUM_BITMAP_BLOCKS * BLOCK_SIZE + idx * sizeof(struct inode));
-    return (struct inode *) (fs + idx * sizeof(struct inode));
+}
+
+u32 get_index_from_inode(struct inode *inode) {
+    return ((u32) inode - (u32) inodes) / sizeof(struct inode);
 }
 
 struct inode *get_inode_by_path(

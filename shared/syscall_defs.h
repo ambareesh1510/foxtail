@@ -19,6 +19,8 @@ enum syscall_code {
     SYS_FILE_INFO,
     SYS_DIR_INFO,
     SYS_DIRENT_INFO,
+    SYS_CREATE,
+    SYS_DELETE,
 };
 
 #define SYS_WRITE_SUCCESS 0
@@ -244,6 +246,31 @@ static inline int dirent_info(unsigned int fd, struct dirent_info *info) {
         "int $0x80"
         : "=a"(ret)
         : "a"(SYS_DIRENT_INFO), "b"(fd), "c"(info)
+        : "memory"
+    );
+    return ret; 
+}
+
+#define SYS_CREATE_FILE 0
+#define SYS_CREATE_DIR 1
+
+static inline int create(const char *parent_path, const char *new_path, unsigned int type) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_CREATE), "b"(parent_path), "c"(new_path), "d"(type)
+        : "memory"
+    );
+    return ret; 
+}
+
+static inline int delete(const char *path) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_DELETE), "b"(path)
         : "memory"
     );
     return ret; 

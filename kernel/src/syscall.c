@@ -485,6 +485,98 @@ void sys_dirent_info(struct syscall_registers *s) {
     return;
 }
 
+// Create an inode named ecx at the path in ebx.
+// If edx = 0, then it is a file; if edx = 1, then it is a directory.
+void sys_create(struct syscall_registers *s) {
+    if (!is_valid_user_addr(s->ebx) || !is_valid_user_addr(s->ecx)) {
+        s->eax = -1;
+        return;
+    }
+    if (s->edx != SYS_CREATE_FILE && s->edx != SYS_CREATE_DIR) {
+        s->eax = -1;
+        return;
+    }
+    struct proc *curr_proc = get_current_proc();
+    char *parent_path = (char *) s->ebx;
+    struct inode *parent_inode = get_inode_by_path(curr_proc->cwd, parent_path);
+    if (parent_inode == 0) {
+        s->eax = -1;
+        return;
+    }
+    if (parent_inode->type != FT_DIRECTORY) {
+        s->eax = -1;
+        return;
+    }
+    if (parent_inode->data.directory_data.num_entries >= DIR_MAX_ENTRIES) {
+        s->eax = -1;
+        return;
+    }
+    char *new_path = (char *) s->ecx;
+    u32 new_path_len = strlen(new_path);
+    if (new_path_len > FILENAME_MAX_LEN - 1) {
+        s->eax = -1;
+        return;
+    }
+    for (u32 i = 0; i < new_path_len; i++) {
+        if (new_path[i] == '/') {
+            s->eax = -1;
+            return;
+        }
+    }
+    if (get_inode_by_path(parent_inode, new_path) != 0) {
+        s->eax = -1;
+        return;
+    }
+    struct inode *new_inode = alloc_inode();
+    if (new_inode == 0) {
+        s->eax = -1;
+        return;
+    }
+    strcpy(new_inode->name, new_path);
+    new_inode->parent = get_index_from_inode(parent_inode);
+    if (s->edx == SYS_CREATE_FILE) {
+        new_inode->type = FT_FILE;
+        new_inode->data.file_data.size = 0;
+    } else {
+        new_inode->type = FT_DIRECTORY;
+        new_inode->data.directory_data.num_entries = 0;
+    }
+    u32 curr_num_entries = parent_inode->data.directory_data.num_entries;
+    parent_inode->data.directory_data.direct_files[curr_num_entries] = get_index_from_inode(new_inode);
+    parent_inode->data.directory_data.num_entries++;
+    s->eax = 0;
+    return;
+}
+
+// Delete the file at the path in ebx.
+void sys_delete(struct syscall_registers *s) {
+    if (!is_valid_user_addr(s->ebx)) {
+        s->eax = -1;
+        return;
+    }
+    char *path = (char *) s->ebx;
+    struct proc *curr_proc = get_current_proc();
+    struct inode *inode = get_inode_by_path(curr_proc->cwd, path);
+    if (inode == 0) {
+        s->eax = -1;
+        return;
+    }
+    u32 inode_idx = get_index_from_inode(inode);
+    struct inode *parent = get_inode_at_idx(inode->parent);
+    for (u32 i = 0; i < parent->data.directory_data.num_entries; i++) {
+        if (parent->data.directory_data.direct_files[i] == inode_idx) {
+            parent->data.directory_data.direct_files[i] = 0;
+            for (u32 j = i; j < parent->data.directory_data.num_entries - 1; j++) {
+                parent->data.directory_data.direct_files[j] = parent->data.directory_data.direct_files[j + 1];
+            }
+            parent->data.directory_data.num_entries--;
+            i--;
+        }
+    }
+    s->eax = free_inode(inode);
+    return;
+}
+
 void syscall_interrupt_handler_inner(struct syscall_registers *s) {
     // kprintf("Syscall with eax = %x, ebx = %x, ecx = %x, edx = %x\n", s->eax, s->ebx, s->ecx, s->edx);
     switch (s->eax) {
@@ -538,6 +630,12 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
             break;
         case SYS_DIRENT_INFO:
             sys_dirent_info(s);
+            break;
+        case SYS_CREATE:
+            sys_create(s);
+            break;
+        case SYS_DELETE:
+            sys_delete(s);
             break;
         default:
             kprintf("Invalid syscall code: %d\n", s->eax);
