@@ -24,7 +24,6 @@ enum proc_status {
     KILLED,
 };
 
-
 enum fd_status {
     FD_UNMAPPED,
     FD_STDIN,
@@ -32,9 +31,6 @@ enum fd_status {
     FD_STDERR,
     FD_REGULAR,
 };
-
-#define FILE_MODE_READ  (1 << 1)
-#define FILE_MODE_WRITE (1 << 2)
 
 struct fd {
     enum fd_status status;

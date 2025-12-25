@@ -19,6 +19,7 @@ size_t process_file(
     size_t *curr_inode,
     char *data_blocks,
     size_t *curr_data_block,
+    char *bitmap,
     char *name
 ) {
     FILE *f;
@@ -41,13 +42,15 @@ size_t process_file(
             break;
         }
         memcpy(
-            data_blocks + (*curr_data_block - NUM_INODE_BLOCKS) * BLOCK_SIZE,
+            data_blocks + (*curr_data_block - NUM_INODE_BLOCKS - NUM_BITMAP_BLOCKS) * BLOCK_SIZE,
             buf,
             BLOCK_SIZE
         );
         memset(buf, 0, BLOCK_SIZE);
         new_inode.data.file_data.blocks[inode_block_idx] = *curr_data_block;
         inode_block_idx++;
+        // Mark block as used
+        bitmap[(*curr_data_block) / 8] |= 1 << ((*curr_data_block) % 8);
         (*curr_data_block)++;
         total_size += read_size;
     }
@@ -62,6 +65,7 @@ int process_dir(
     size_t *curr_inode,
     char *data_blocks,
     size_t *curr_data_block,
+    char *bitmap,
     char *name
 ) {
     DIR *d;
@@ -77,7 +81,7 @@ int process_dir(
     (*curr_inode)++;
     struct inode new_inode = {0};
     if (strcmp(name, FS_DIR) == 0) {
-        strcpy(new_inode.name, "~");
+        strcpy(new_inode.name, FS_ROOT_PATH);
         new_inode.parent = 0;
     } else {
         strncpy(new_inode.name, get_filename(name), FILENAME_MAX_LEN - 1);
@@ -98,9 +102,9 @@ int process_dir(
         strcat(buf, "/");
         strcat(buf, dir->d_name);
         if (dir->d_type == DT_REG) {
-            inode_idx = process_file(inodes, curr_inode, data_blocks, curr_data_block, buf);
+            inode_idx = process_file(inodes, curr_inode, data_blocks, curr_data_block, bitmap, buf);
         } else if (dir->d_type == DT_DIR) {
-            inode_idx = process_dir(inodes, curr_inode, data_blocks, curr_data_block, buf);
+            inode_idx = process_dir(inodes, curr_inode, data_blocks, curr_data_block, bitmap, buf);
         }
         free(buf);
         if (inode_idx == 0) {
@@ -120,12 +124,17 @@ int main() {
 #error CHAR_BIT != 8
 #endif
 
+    char bitmap[NUM_BITMAP_BLOCKS * BLOCK_SIZE] = {0};
+    for (int i = 0; i < NUM_BITMAP_BLOCKS + NUM_INODE_BLOCKS; i++) {
+        bitmap[i / 8] |= 1 << (i % 8);
+    }
     struct inode inodes[NUM_INODE_BLOCKS * (BLOCK_SIZE / sizeof(struct inode))] = {0};
     size_t curr_inode = 0;
     char data_blocks[BLOCK_SIZE * (NUM_BLOCKS - NUM_INODE_BLOCKS)] = {0};
-    size_t curr_data_block = NUM_INODE_BLOCKS;
+    size_t curr_data_block = NUM_BITMAP_BLOCKS + NUM_INODE_BLOCKS;
+    // size_t curr_data_block = NUM_INODE_BLOCKS;
 
-    process_dir(inodes, &curr_inode, data_blocks, &curr_data_block, FS_DIR);
+    process_dir(inodes, &curr_inode, data_blocks, &curr_data_block, bitmap, FS_DIR);
 
     FILE *fs;
     fs = fopen(FS_OUT, "wb");
@@ -134,8 +143,9 @@ int main() {
         return 1;
     }
     printf("[LOG] Writing filesystem to disk at %s\n", FS_OUT);
+    fwrite(bitmap, BLOCK_SIZE, NUM_BITMAP_BLOCKS, fs);
     fwrite(inodes, sizeof(struct inode), sizeof(inodes) / sizeof(struct inode), fs);
-    fwrite(data_blocks, BLOCK_SIZE, NUM_BLOCKS - NUM_INODE_BLOCKS, fs);
+    fwrite(data_blocks, BLOCK_SIZE, NUM_BLOCKS - NUM_INODE_BLOCKS - NUM_BITMAP_BLOCKS, fs);
     fclose(fs);
 
     return 0;

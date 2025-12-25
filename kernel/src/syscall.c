@@ -29,7 +29,7 @@ void sys_write(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
-    if (!(curr_proc->fds[s->ebx].mode & FILE_MODE_WRITE)) {
+    if (!(curr_proc->fds[s->ebx].mode & SYS_OPEN_FILE_MODE_WRITE)) {
         s->eax = SYS_WRITE_BAD_PERMS;
         return;
     }
@@ -40,9 +40,12 @@ void sys_write(struct syscall_registers *s) {
             kprint_char(buf[i]);
         }
     } else {
-        panic("write to file is unimplemented");
+        struct inode *file = curr_proc->fds[s->ebx].file;
+        u32 ptr = curr_proc->fds[s->ebx].ptr;
+        s->eax = fs_write_bytes(file, ptr, s->edx, buf);
+        curr_proc->fds[s->ebx].ptr += s->eax;
+        return;
     }
-    s->eax = 0;
     return;
 }
 
@@ -58,7 +61,7 @@ void sys_read(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
-    if (!(curr_proc->fds[s->ebx].mode & FILE_MODE_READ)) {
+    if (!(curr_proc->fds[s->ebx].mode & SYS_OPEN_FILE_MODE_READ)) {
         s->eax = SYS_READ_BAD_PERMS;
         return;
     }
@@ -91,6 +94,8 @@ void sys_read(struct syscall_registers *s) {
         struct inode *file = curr_proc->fds[s->ebx].file;
         u32 ptr = curr_proc->fds[s->ebx].ptr;
         s->eax = fs_read_bytes(file, ptr, s->edx, buf);
+        curr_proc->fds[s->ebx].ptr += s->eax;
+        return;
     }
 }
 
@@ -249,7 +254,7 @@ void sys_pwd(struct syscall_registers *s) {
     struct proc *curr_proc = get_current_proc();
     u32 len = 0;
     struct inode *curr = curr_proc->cwd;
-    while (strcmp(curr->name, "~") != 0) {
+    while (strcmp(curr->name, FS_ROOT_PATH) != 0) {
         // strlen + path separator ('/')
         len += strlen(curr->name) + 1;
         curr = get_inode_at_idx(curr->parent);
@@ -265,7 +270,7 @@ void sys_pwd(struct syscall_registers *s) {
     char *buf = (char *) s->ebx;
     len -= 1;
     buf[len] = '\0';
-    while (strcmp(curr->name, "~") != 0) {
+    while (strcmp(curr->name, FS_ROOT_PATH) != 0) {
         u32 name_len = strlen(curr->name);
         len -= name_len;
         memcpy(buf + len, curr->name, name_len);
@@ -275,6 +280,94 @@ void sys_pwd(struct syscall_registers *s) {
     }
     memcpy(buf, curr->name, strlen(curr->name));
     s->eax = 0;
+    return;
+}
+
+void sys_open(struct syscall_registers *s) {
+    if (!is_valid_user_addr(s->ebx)) {
+        s->eax = -1;
+        return;
+    }
+    char *path = (char *) s->ebx;
+    struct proc *curr_proc = get_current_proc();
+    struct inode *target = get_inode_by_path(curr_proc->cwd, path);
+    if (target->type != FT_FILE) {
+        s->eax = -1;
+        return;
+    }
+    // TODO: add permissions checking
+    for (u32 i = 0; i < MAX_FDS; i++) {
+        if (curr_proc->fds[i].status == FD_UNMAPPED) {
+            curr_proc->fds[i].status = FD_REGULAR;
+            curr_proc->fds[i].file = target;
+            curr_proc->fds[i].mode = s->ecx;
+            curr_proc->fds[i].ptr = 0;
+            s->eax = i;
+            return;
+        }
+    }
+    s->eax = -1;
+    return;
+}
+
+// TODO: test
+void sys_reopen(struct syscall_registers *s) {
+    if (s->ebx > MAX_FDS) {
+        s->eax = -1;
+        return;
+    }
+    if (!is_valid_user_addr(s->ecx)) {
+        s->eax = -1;
+        return;
+    }
+    char *path = (char *) s->ecx;
+    struct proc *curr_proc = get_current_proc();
+    struct inode *target = get_inode_by_path(curr_proc->cwd, path);
+    if (target->type != FT_FILE) {
+        s->eax = -1;
+        return;
+    }
+
+    // TODO: add permissions checking
+    curr_proc->fds[s->ebx].status = FD_REGULAR;
+    curr_proc->fds[s->ebx].file = target;
+    curr_proc->fds[s->ebx].mode = s->edx;
+    curr_proc->fds[s->ebx].ptr = 0;
+    s->eax = s->ebx;
+    return;
+}
+
+void sys_close(struct syscall_registers *s) {
+    if (s->ebx >= MAX_FDS) {
+        s->eax = -1;
+        return;
+    }
+    struct proc *curr_proc = get_current_proc();
+    if (curr_proc->fds[s->ebx].status == FD_UNMAPPED) {
+        s->eax = -1;
+        return;
+    }
+    curr_proc->fds[s->ebx].status = FD_UNMAPPED;
+    s->eax = 0;
+    return;
+}
+
+void sys_set_ptr(struct syscall_registers *s) {
+    if (s->ebx >= MAX_FDS) {
+        s->eax = -1;
+        return;
+    }
+    struct proc *curr_proc = get_current_proc();
+    if (curr_proc->fds[s->ebx].status != FD_REGULAR) {
+        s->eax = -1;
+        return;
+    }
+    u32 ptr = min(
+        s->ecx,
+        curr_proc->fds[s->ebx].file->data.file_data.size
+    );
+    curr_proc->fds[s->ebx].ptr = ptr;
+    s->eax = ptr;
     return;
 }
 
@@ -307,6 +400,18 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
             break;
         case SYS_PWD:
             sys_pwd(s);
+            break;
+        case SYS_OPEN:
+            sys_open(s);
+            break;
+        case SYS_REOPEN:
+            sys_reopen(s);
+            break;
+        case SYS_CLOSE:
+            sys_close(s);
+            break;
+        case SYS_SET_PTR:
+            sys_set_ptr(s);
             break;
         default:
             kprintf("Invalid syscall code: %d\n", s->eax);

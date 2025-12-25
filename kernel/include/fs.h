@@ -19,5 +19,6 @@ void tree(struct inode *base);
 void ls(struct inode *base);
 
 u32 fs_read_bytes(struct inode *inode, u32 offset, u32 size, char *buf);
+u32 fs_write_bytes(struct inode *inode, u32 offset, u32 size, char *buf);
 
 #endif /* FS_H */

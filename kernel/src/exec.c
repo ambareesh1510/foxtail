@@ -7,6 +7,7 @@
 #include "paging.h"
 #include "pgalloc.h"
 #include "kstring.h"
+#include "syscall_defs.h"
 #include "proc.h"
 
 u32 new_pgdir[PGDIR_LEN];
@@ -19,7 +20,7 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     fs_read_bytes(prog, 0, sizeof(elf_header), (char *) (&elf_header));
 
     if (elf_header.magic != ELF_MAGIC) {
-        kprintf("Bad magic\n");
+        kprintf("Exec %s: bad magic\n", prog->name);
         return 0;
     }
     struct proc *new_proc = alloc_proc();
@@ -185,19 +186,19 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     // Fill fds
     new_proc->fds[0] = (struct fd) {
         .status = FD_STDOUT,
-        .mode = FILE_MODE_WRITE,
+        .mode = SYS_OPEN_FILE_MODE_WRITE,
         .file = 0,
         .ptr = 0,
     };
     new_proc->fds[1] = (struct fd) {
         .status = FD_STDIN,
-        .mode = FILE_MODE_READ,
+        .mode = SYS_OPEN_FILE_MODE_READ,
         .file = 0,
         .ptr = 0,
     };
     new_proc->fds[2] = (struct fd) {
         .status = FD_STDERR,
-        .mode = FILE_MODE_WRITE,
+        .mode = SYS_OPEN_FILE_MODE_WRITE,
         .file = 0,
         .ptr = 0,
     };

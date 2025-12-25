@@ -3,11 +3,14 @@
 
 #include "util.h"
 
+#define FS_ROOT_PATH "@"
+
 enum filetype {
     FT_FILE,
     FT_DIRECTORY,
 };
 #define NDIRECT 22
+#define FILE_MAX_SIZE (NDIRECT * BLOCK_SIZE)
 #define FILENAME_MAX_LEN 28
 struct file_inode_data {
     u32 size;
@@ -42,6 +45,13 @@ _Static_assert(sizeof(struct fs_dirent) == 4, "Bad dirent size");
 #define NUM_INODE_BLOCKS 8
 
 #define BLOCK_SIZE 4096
-#define NUM_BLOCKS 100
+#define NUM_BLOCKS 128
+
+#if NUM_BLOCKS % 8 != 0
+#error NUM_BLOCKS % 8 != 0
+#endif
+
+#define NUM_BITMAP_BYTES (NUM_BLOCKS / 8)
+#define NUM_BITMAP_BLOCKS ((NUM_BITMAP_BYTES + BLOCK_SIZE - 1) / BLOCK_SIZE)
 
 #endif /* FS_DEFS_H */

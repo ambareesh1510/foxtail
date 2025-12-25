@@ -11,6 +11,10 @@ enum syscall_code {
     SYS_SBRK,
     SYS_CD,
     SYS_PWD,
+    SYS_OPEN,
+    SYS_REOPEN,
+    SYS_CLOSE,
+    SYS_SET_PTR,
 };
 
 #define SYS_WRITE_SUCCESS 0
@@ -126,6 +130,53 @@ static inline int pwd(char *buf, unsigned int size) {
         "int $0x80"
         : "=a"(ret)
         : "a"(SYS_PWD), "b"(buf), "c"(size)
+        : "memory"
+    );
+    return ret; 
+}
+
+#define SYS_OPEN_FILE_MODE_READ  (1 << 1)
+#define SYS_OPEN_FILE_MODE_WRITE (1 << 2)
+
+static inline int open(const char *path, unsigned int mode) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_OPEN), "b"(path), "c"(mode)
+        : "memory"
+    );
+    return ret; 
+}
+
+static inline int reopen(unsigned int fd, const char *path, unsigned int mode) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_REOPEN), "b"(fd), "c"(path), "d"(mode)
+        : "memory"
+    );
+    return ret; 
+}
+
+static inline int close(unsigned int fd) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_CLOSE), "b"(fd)
+        : "memory"
+    );
+    return ret; 
+}
+
+static inline int set_ptr(unsigned int fd, unsigned int ptr) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_SET_PTR), "b"(fd), "c"(ptr)
         : "memory"
     );
     return ret; 

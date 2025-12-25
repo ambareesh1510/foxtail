@@ -7,7 +7,30 @@ char fs[NUM_BLOCKS * BLOCK_SIZE] = {
 #embed "fs.bin"
 };
 
+char *free_block_bitmap = fs;
+
+i32 alloc_block() {
+    for (u32 i = 0; i < NUM_BLOCKS; i++) {
+        if (free_block_bitmap[i / 8] & (1 << (i % 8))) {
+            continue;
+        }
+        free_block_bitmap[i / 8] |= (1 << (i % 8));
+        return i;
+    }
+    return -1;
+}
+
+bool free_block(u32 block_idx) {
+    if (free_block_bitmap[block_idx / 8] & (1 << (block_idx % 8))) {
+        return false;
+    } else {
+        free_block_bitmap[block_idx / 8] &= ~(1 << (block_idx % 8));
+        return true;
+    }
+}
+
 struct inode *get_inode_at_idx(u32 idx) {
+    return (struct inode *) (fs + NUM_BITMAP_BLOCKS * BLOCK_SIZE + idx * sizeof(struct inode));
     return (struct inode *) (fs + idx * sizeof(struct inode));
 }
 
@@ -95,48 +118,92 @@ u32 get_block_from_inode_offset(
     return 0;
 }
 
+#define BLOCK_ROUND_UP(x) (((x + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE)
 
-u32 fs_read_bytes(struct inode *inode, u32 offset, u32 size, char *buf) {
-    u32 total_bytes_read = 0;
+u32 fs_move_bytes(struct inode *inode, u32 offset, u32 size, char *buf, bool is_read) {
+    // If it's a write and the file isn't big enough, allocate more blocks
+    // TODO: test this
+    if (!is_read) {
+        u32 end = offset + size;
+        if (end > inode->data.file_data.size) {
+            if (end > FILE_MAX_SIZE) {
+                // The write would exceed max file size; truncate the size of the write accordingly
+                size = inode->data.file_data.size - offset;
+            }
+            if (inode->data.file_data.size > FILE_MAX_SIZE - BLOCK_SIZE) {
+                // All blocks are already allocated; continue.
+            } else {
+                u32 unallocated_block = (inode->data.file_data.size + BLOCK_SIZE - 1) / BLOCK_SIZE + 1;
+                u32 final_block = (end + BLOCK_SIZE - 1) / BLOCK_SIZE;
+                while (unallocated_block < final_block) {
+                    inode->data.file_data.blocks[unallocated_block] = alloc_block();
+                    unallocated_block++;
+                }
+                inode->data.file_data.size = end;
+            }
+        }
+    }
+    u32 total_bytes_moved = 0;
     u32 buf_offset = 0;
-    // Read bytes from the first block
-    u32 first_block_read_size = min(
+    // Move bytes from the first block
+    u32 first_block_move_size = min(
         size,
         BLOCK_SIZE - (offset % BLOCK_SIZE)
     );
-    first_block_read_size = min(
-        first_block_read_size, 
+    first_block_move_size = min(
+        first_block_move_size, 
         inode->data.file_data.size - offset
     );
     u32 first_block_index = get_block_from_inode_offset(inode, offset);
-    memcpy(buf,  fs + first_block_index * BLOCK_SIZE + offset % BLOCK_SIZE, first_block_read_size);
-    size -= first_block_read_size;
-    offset += first_block_read_size;
-    buf_offset += first_block_read_size;
-    total_bytes_read += first_block_read_size;
+    if (is_read) {
+        memcpy(buf,  fs + first_block_index * BLOCK_SIZE + offset % BLOCK_SIZE, first_block_move_size);
+    } else {
+        memcpy(fs + first_block_index * BLOCK_SIZE + offset % BLOCK_SIZE, buf, first_block_move_size);
+    }
+    size -= first_block_move_size;
+    offset += first_block_move_size;
+    buf_offset += first_block_move_size;
+    total_bytes_moved += first_block_move_size;
 
-    // Read bytes from each remaining block
+    // Move bytes from each remaining block
     for (;;) {
-        u32 block_read_size = min(size, BLOCK_SIZE);
-        block_read_size = min(
-            block_read_size,
+        u32 block_move_size = min(size, BLOCK_SIZE);
+        block_move_size = min(
+            block_move_size,
             inode->data.file_data.size - offset
         );
         u32 block_index = get_block_from_inode_offset(inode, offset);
-        memcpy(
-            buf + buf_offset,
-            fs + block_index * BLOCK_SIZE,
-            block_read_size
-        );
-        offset += block_read_size;
-        buf_offset += block_read_size;
-        total_bytes_read += block_read_size;
+        if (is_read) {
+            memcpy(
+                buf + buf_offset,
+                fs + block_index * BLOCK_SIZE,
+                block_move_size
+            );
+        } else {
+            memcpy(
+                fs + block_index * BLOCK_SIZE,
+                buf + buf_offset,
+                block_move_size
+            );
+        }
+        offset += block_move_size;
+        buf_offset += block_move_size;
+        total_bytes_moved += block_move_size;
         if (size < BLOCK_SIZE) {
             break;
         }
         size -= BLOCK_SIZE;
     }
-    return total_bytes_read;
+    return total_bytes_moved;
+}
+
+
+u32 fs_read_bytes(struct inode *inode, u32 offset, u32 size, char *buf) {
+    return fs_move_bytes(inode, offset, size, buf, true);
+}
+
+u32 fs_write_bytes(struct inode *inode, u32 offset, u32 size, char *buf) {
+    return fs_move_bytes(inode, offset, size, buf, false);
 }
 
 void ls_entry(struct inode *entry) {
@@ -146,6 +213,9 @@ void ls_entry(struct inode *entry) {
             entry->data.file_data.size,
             entry->name
         );
+        for (u32 block = 0; block < entry->data.file_data.size / BLOCK_SIZE + 1; block++) {
+            kprintf("  block %d\n", entry->data.file_data.blocks[block]);
+        }
     } else {
         kprintf(
             "D (%d entries) %s\n",
