@@ -116,15 +116,14 @@ void sys_read(struct syscall_registers *s) {
     }
 }
 
-// Spawns a new process from the file path specified by ebx.
+// Spawns a new process from the file path specified by ebx, with argc = ecx and argv = edx.
 // Returns eax = -1 on failure.
 // Returns eax = new pid on success.
 void sys_spawn_proc(struct syscall_registers *s) {
-    if (!is_valid_user_addr(s->ebx)) {
+    if (!is_valid_user_addr(s->ebx) || !is_valid_user_addr(s->edx)) {
         s->eax = -1;
         return;
     }
-    // TODO: update base of this to be cwd
     struct inode *prog = get_inode_by_path(get_current_proc()->cwd, (char *) s->ebx);
     if (prog == 0) {
         s->eax = -1;
@@ -134,7 +133,7 @@ void sys_spawn_proc(struct syscall_registers *s) {
         s->eax = -1;
         return;
     }
-    struct proc *new_proc = exec_helper(prog);
+    struct proc *new_proc = exec_helper(prog, s->ecx, (char **) s->edx);
     if (new_proc == 0) {
         s->eax = -1;
     } else {
@@ -187,11 +186,8 @@ void sys_wait(struct syscall_registers *s) {
 }
 
 u32 sbrk_temp_pgdir[PGDIR_LEN];
-void sys_sbrk(struct syscall_registers *s) {
-    struct proc *curr_proc = get_current_proc();
-
-    // Round up brk_delta.
-    i32 brk_delta = ((s->ebx + PGSIZE - 1) / PGSIZE) * PGSIZE;
+void sbrk_helper(struct proc *curr_proc, i32 delta) {
+    i32 brk_delta = ((delta + PGSIZE - 1) / PGSIZE) * PGSIZE;
     if (brk_delta == 0) {
         return;
     } 
@@ -242,9 +238,18 @@ void sys_sbrk(struct syscall_registers *s) {
     flush_tlb();
     memcpy((char *) temp_page_ptr, (char *) sbrk_temp_pgdir, PGSIZE);
 
-    // Update brk value in proc struct.
-    s->eax = curr_proc->brk;
     curr_proc->brk += brk_delta;
+}
+
+void sys_sbrk(struct syscall_registers *s) {
+    struct proc *curr_proc = get_current_proc();
+
+    // Round up brk_delta.
+    i32 brk_delta = s->ebx;
+
+    s->eax = curr_proc->brk;
+    sbrk_helper(curr_proc, brk_delta);
+    return;
 }
 
 // Changes directory to the dir specified in ebx.

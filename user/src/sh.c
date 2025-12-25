@@ -14,6 +14,36 @@ bool is_prefix(char *str, char *prefix) {
     return true;
 }
 
+#define MAX_ARGS 16
+
+int parse_args(char *buf, char *argv[]) {
+    int argc = 0;
+
+    while (*buf == ' ') {
+        buf++;
+    }
+
+    while (*buf != '\0' && argc < MAX_ARGS) {
+        argv[argc++] = buf;
+
+        while (*buf && *buf != ' ')
+            buf++;
+
+        if (*buf == '\0')
+            break;
+
+        *buf = '\0';
+        buf++;
+
+        while (*buf == ' ')
+            buf++;
+    }
+
+    argv[argc] = 0;
+    return argc;
+}
+
+
 void _start() {
     char buf[100];
     int bytes;
@@ -43,10 +73,16 @@ void _start() {
         } else if (strcmp(buf, "exit") == 0) {
             exit();
         } else {
-            int res = spawn_proc(buf);
+            char *argv[MAX_ARGS + 1];
+            int argc = parse_args(buf, argv);
+
+            if (argc == 0)
+                continue;
+
+            int res = spawn_proc(argv[0], argc, argv);
             if (res < 0) {
                 puts("Unable to spawn process ");
-                puts(buf);
+                puts(argv[0]);
                 puts(".\n");
             } else {
                 wait(res);

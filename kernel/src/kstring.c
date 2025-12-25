@@ -25,15 +25,15 @@ u32 strcmp(const char *a, const char *b) {
     }
 }
 
-void strcpy(char *dst, char *src) {
+u32 strcpy(char *dst, char *src) {
     if (dst == 0 || src == 0) {
-        return;
+        return 0;
     }
     u32 i = 0;
     while (1) {
         dst[i] = src[i];
         if (src[i] == '\0') {
-            return;
+            return i;
         }
         i++;
     }

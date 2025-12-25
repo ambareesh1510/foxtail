@@ -9,7 +9,7 @@ enum exec_status {
     EXEC_ERROR_INVALID_MAGIC,
 };
 
-struct proc *exec_helper(struct inode *prog);
+struct proc *exec_helper(struct inode *prog, u32 argc, char **argv);
 enum exec_status exec(struct inode *prog);
 
 #endif /* EXEC_H */

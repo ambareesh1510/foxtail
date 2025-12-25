@@ -7,6 +7,7 @@
 #include "paging.h"
 #include "pgalloc.h"
 #include "kstring.h"
+#include "syscall.h"
 #include "syscall_defs.h"
 #include "proc.h"
 
@@ -14,9 +15,14 @@ u32 new_pgdir[PGDIR_LEN];
 u32 old_cr3;
 struct elf_header elf_header;
 struct inode *prog;
+u32 global_argc;
+char **global_argv;
+char global_arg_buf[PGSIZE];
 
-struct proc *exec_helper(struct inode *prog_ptr) {
+struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv) {
     prog = prog_ptr;
+    global_argc = argc;
+    global_argv = argv;
     fs_read_bytes(prog, 0, sizeof(elf_header), (char *) (&elf_header));
 
     if (elf_header.magic != ELF_MAGIC) {
@@ -25,8 +31,6 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     }
     struct proc *new_proc = alloc_proc();
     memcpy(new_proc->name, prog->name, FILENAME_MAX_LEN);
-
-    // TODO: allocate argc, argv
 
     // Use the last entry of kernel_pgtbl as a temporary buffer.
     // TODO: maybe move these to global scope, since they're also used in cleanup?
@@ -107,6 +111,33 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     temp_page_ptr[PGTBL_LEN - 2] = kernel_stack_top_addr | 0x3;
     temp_page_ptr[PGTBL_LEN - 3] = kernel_stack_bottom_addr | 0x3;
     new_proc->kernel_stack = kernel_stack_top_addr;
+
+    // Allocate space for argc, argv
+    u32 total_argv_len = 0;
+    for (u32 i = 0; i < argc; i++) {
+        char *arg = argv[i];
+        // One extra byte for null terminator
+        // Add sizeof(char *) to account for pointer in array
+        total_argv_len += strlen(arg) + 1 + sizeof(char *);
+    }
+
+    // TODO: this limits the size of argvs to 1 page (because I'm lazy).
+    // Implement this properly at some point.
+    char **argv_arr = (char **) global_arg_buf;
+    char *argv_buf = (char *) global_arg_buf + global_argc * sizeof(char *);
+    for (u32 i = 0; i < global_argc; i++) {
+        u32 next_len = strlen(global_argv[i]) + 1;
+        if ((u32) argv_buf + next_len > (u32) global_arg_buf + PGSIZE) {
+            global_argc = i;
+            break;
+        }
+        argv_arr[i] = (char *) (0x80000000 + (u32) argv_buf - (u32) global_arg_buf);
+        strcpy(
+            argv_buf,
+            global_argv[i]
+        );
+        argv_buf += next_len;
+    }
     
     new_pgdir[HIGHER_HALF_BASE >> 22] = ((u32) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) & 0xfffff000) | 0x3;
     
@@ -116,6 +147,13 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     flush_tlb();
     memcpy((char *) temp_page_ptr, (char *) new_pgdir, PGSIZE);
     kernel_pgtbl[PGTBL_LEN - 1] = (u32) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) | 0x3;
+
+    new_proc->cr3 = new_pgdir_addr;
+    // TODO: remove magic number
+    new_proc->brk = 0x80000000;
+
+    // TODO: using sbrk_helper is not efficient (should do it before the cr3 is loaded into new_proc)
+    sbrk_helper(new_proc, total_argv_len);
     
     __asm__ volatile (
         "mov %%cr3, %%eax\n"
@@ -149,6 +187,26 @@ struct proc *exec_helper(struct inode *prog_ptr) {
         memset((char *) (program_header.vaddr + program_header.filesz), 0, program_header.memsz - program_header.filesz);
     }
 
+    // TODO: see previous comment about implementing argc/argv properly
+    if (global_argc > 0) {
+        memcpy(
+            (char *) 0x80000000,
+            global_arg_buf,
+            PGSIZE
+        );
+    }
+
+    // Push argc, argv onto the stack
+    u32 *stack = (u32 *) HIGHER_HALF_BASE;
+    stack--;
+    *stack = (u32) (0x80000000);
+    stack--;
+    *stack = global_argc;
+    stack--;
+    *stack = 0;
+    stack--;
+    *stack = 0;
+
     // Restore the old cr3
     __asm__ volatile (
         "mov %0, %%eax\n"
@@ -172,16 +230,13 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     
 
     // Copy new process's details into the proc struct
-    new_proc->cr3 = new_pgdir_addr;
     new_proc->registers.cs = 0x1B;
     new_proc->registers.ss = 0x23;
-    new_proc->registers.esp = HIGHER_HALF_BASE;
+    new_proc->registers.esp = HIGHER_HALF_BASE - 12;
     new_proc->registers.ebp = HIGHER_HALF_BASE;
     new_proc->registers.eip = elf_header.entry;
 
     new_proc->status = EMBRYO;
-    // TODO: remove magic number
-    new_proc->brk = 0x80000000;
     new_proc->cwd = get_root_inode();
     // Fill fds
     new_proc->fds[0] = (struct fd) {
@@ -226,7 +281,7 @@ enum exec_status exec(struct inode *prog) {
         return EXEC_ERROR_INVALID_MAGIC;
     }
 
-    struct proc *new_proc = exec_helper(prog);
+    struct proc *new_proc = exec_helper(prog, 0, 0);
     if (new_proc == 0) {
         panic("Exec helper failed\n");
     }

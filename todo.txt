@@ -1,4 +1,3 @@
-argc and argv
 exception handlers
 users and permissions
 kernel logging

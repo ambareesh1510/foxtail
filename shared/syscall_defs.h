@@ -60,12 +60,12 @@ static inline int read(int fd, char *buf, unsigned int count) {
 
 // Spawn a new process from the given `path`.
 // Returns: PID of new process on success, -1 on error
-static inline int spawn_proc(const char *path) {
+static inline int spawn_proc(const char *path, unsigned int argc, char **argv) {
     int ret;
     __asm__ volatile(
         "int $0x80"
         : "=a"(ret)
-        : "a"(SYS_SPAWN_PROC), "b"(path)
+        : "a"(SYS_SPAWN_PROC), "b"(path), "c"(argc), "d"(argv)
         : "memory"
     );
     return ret;
