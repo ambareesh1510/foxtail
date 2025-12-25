@@ -1,4 +1,5 @@
 #include "syscall_defs.h"
+#include "string.h"
 #include "malloc.h"
 
 void _start() {
@@ -9,7 +10,7 @@ void _start() {
         len *= 2;
         buf = realloc(buf, len);
     }
-    write(buf);
-    write("\n");
+    puts(buf);
+    puts("\n");
     exit();
 }

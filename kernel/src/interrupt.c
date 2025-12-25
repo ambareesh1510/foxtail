@@ -82,28 +82,28 @@ char *a = "TEST_TIMER_HANDLER %x\n";
 __attribute__ ((naked))
 void timer_interrupt_handler() {
     __asm__ volatile (
+        // "push %%esp; push %0\n; call kprintf; add $0x8, %%esp\n"
+        // "iret\n"
         "cli\n"
         "pushal\n"
-        "push %%esp\n"
+        // "push %%esp\n"
+        "cld\n"
         "call timer_interrupt_handler_inner\n"
         // If it's an embryo, set the esp to
         // HIGHER_HALF_BASE - PGSIZE - sizeof(struct regs_and_interrupt_frame)
-        // TODO: should do this on every context switch (restore esp)
-        "cmp %2, %%eax\n"
+        "cmp %1, %%eax\n"
         "jne not_embryo\n"
-        "mov %3, %%esp\n"
+        "mov %2, %%esp\n"
         "call set_curr_proc_runnable\n"
         "not_embryo:\n"
-        "add $0x4, %%esp\n"
-        // "push 0(%%esp); push %0\n; call kprintf; add $0x8, %%esp\n"
+        // "add $0x4, %%esp\n"
         "popal\n"
         "sti\n"
         "iret\n"
         : :
           "m"(a),
-          "m"(get_current_proc()->status),
           "i"(EMBRYO),
-          "i"(HIGHER_HALF_BASE - PGSIZE - sizeof(struct regs_and_interrupt_frame) - 4)
+          "i"(HIGHER_HALF_BASE - PGSIZE - sizeof(struct regs_and_interrupt_frame))
           // "i"(0xBFFFEFCC)
         : "ebp", "esp", "eax", "ebx", "ecx", "edx", "memory", "cc"
     );
@@ -116,9 +116,8 @@ u32 global_ebp;
 char ctx_switch_temp_stack[2 * PGSIZE];
 
 u32 timer_interrupt_handler_inner(
-    struct regs_and_interrupt_frame *f
+    // struct regs_and_interrupt_frame *f
 ) {
-    pic_send_eoi(0);
     __asm__ volatile("mov 4(%%ebp), %0" : "=r"(global_ra));
     if (!proc_exists) {
         goto timer_handler_default;
@@ -158,7 +157,7 @@ u32 timer_interrupt_handler_inner(
         __asm__ volatile (
             "mov %0, %%esp"
             : : "m"(new_curr_proc->kernel_sp)
-            : "esp"
+            : "esp", "memory"
         );
         goto timer_handler_default;
     }
@@ -169,7 +168,7 @@ u32 timer_interrupt_handler_inner(
     );
 
 
-    f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
+    struct regs_and_interrupt_frame *f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
 
     // Restore registers in interrupt frame
     f->frame.sp = curr_proc->registers.esp;
@@ -192,12 +191,13 @@ u32 timer_interrupt_handler_inner(
 
     __asm__ volatile ("movl %0, 0x4(%%ebp)" : : "r"(global_ra) : "memory");
 timer_handler_default:
-    f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
+    // f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
     // kprintf("curr proc pid=%d, status=%d, esp=%x\n", curr_proc->pid, curr_proc->status, curr_proc->kernel_sp);
     // kprintf("IRET target: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
     //     f->frame.ip, f->frame.cs, f->frame.flags,
     //     f->frame.sp, f->frame.ss);
     ticks++;
+    pic_send_eoi(0);
     // pic_send_eoi(0);
     if (!proc_exists) {
         return 0;

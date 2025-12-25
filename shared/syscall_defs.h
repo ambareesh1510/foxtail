@@ -13,27 +13,34 @@ enum syscall_code {
     SYS_PWD,
 };
 
+#define SYS_WRITE_SUCCESS 0
+#define SYS_WRITE_BAD_BUF -1
+#define SYS_WRITE_BAD_PERMS -2
+
 // Write the null-terminated string `str` to stdout.
 // Returns: 0 on success, -1 on error.
-static inline int write(const char *str) {
+static inline int write(int fd, const char *buf, unsigned int count) {
     int ret;
     __asm__ volatile(
         "int $0x80"
         : "=a"(ret)
-        : "a"(SYS_WRITE), "b"(str)
+        : "a"(SYS_WRITE), "b"(fd), "c"(buf), "d"(count)
         : "memory"
     );
     return ret;
 }
 
-// Read up to `count` bytes from stdin into `buf`.
+#define SYS_READ_BAD_BUF -1
+#define SYS_READ_BAD_PERMS -2
+
+// Read up to `count` bytes from `fd` into `buf`.
 // Returns: number of bytes read, or -1 on error
-static inline int read(char *buf, unsigned int count) {
+static inline int read(int fd, char *buf, unsigned int count) {
     int ret;
     __asm__ volatile(
         "int $0x80"
         : "=a"(ret)
-        : "a"(SYS_READ), "b"(buf), "c"(count)
+        : "a"(SYS_READ), "b"(fd), "c"(buf), "d"(count)
         : "memory"
     );
     return ret;

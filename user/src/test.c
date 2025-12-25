@@ -1,6 +1,7 @@
 #include "syscall_defs.h"
 #include "malloc.h"
 #include "string.h"
+#include "printf.h"
 
 bool is_prefix(char *str, char *prefix) {
     unsigned int i = 0;
@@ -17,8 +18,8 @@ void _start() {
     char buf[100];
     int bytes;
     for (;;) {
-        write("$ ");
-        bytes = read(buf, 99);
+        puts("$ ");
+        bytes = read(1, buf, 99);
         if (buf[bytes - 1] == '\n') {
             buf[bytes - 1] = '\0';
         } else {
@@ -33,20 +34,20 @@ void _start() {
             }
             int res = cd(dir);
             if (res == 0) {
-                write("Changed directories to ");
-                write(dir);
-                write("\n");
+                puts("Changed directories to ");
+                puts(dir);
+                puts("\n");
             } else {
-                write("Unable to change directories\n");
+                puts("Unable to change directories\n");
             }
         } else if (strcmp(buf, "exit") == 0) {
             exit();
         } else {
             int res = spawn_proc(buf);
             if (res < 0) {
-                write("Unable to spawn process ");
-                write(buf);
-                write(".\n");
+                puts("Unable to spawn process ");
+                puts(buf);
+                puts(".\n");
             } else {
                 wait(res);
             }

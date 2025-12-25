@@ -2,6 +2,7 @@
 #include "cleanup.h"
 #include "exec.h"
 #include "fs.h"
+#include "fs_defs.h"
 #include "interrupt.h"
 #include "kprintf.h"
 #include "paging.h"
@@ -18,52 +19,79 @@ bool is_valid_user_addr(u32 addr) {
     return addr < HIGHER_HALF_BASE;
 }
 
-// Writes the string pointed to by ebx to stdout.
+// Writes edx bytes from the buf in ecx to file descriptor ebx.
 // Returns eax = 0 on success.
 // eax = -1 if error.
+// TODO: return number of bytes written (in case we exceed size limit)
 void sys_write(struct syscall_registers *s) {
-    if (!is_valid_user_addr(s->ebx)) {
-        s->eax = -1;
+    if (!is_valid_user_addr(s->ecx)) {
+        s->eax = SYS_WRITE_BAD_BUF;
         return;
     }
-    kprint((char *) s->ebx);
+    struct proc *curr_proc = get_current_proc();
+    if (!(curr_proc->fds[s->ebx].mode & FILE_MODE_WRITE)) {
+        s->eax = SYS_WRITE_BAD_PERMS;
+        return;
+    }
+    char *buf = (char *) s->ecx;
+    enum fd_status status = curr_proc->fds[s->ebx].status;
+    if (status == FD_STDOUT || status == FD_STDERR) {
+        for (u32 i = 0; i < s->edx; i++) {
+            kprint_char(buf[i]);
+        }
+    } else {
+        panic("write to file is unimplemented");
+    }
     s->eax = 0;
     return;
 }
 
-// Reads ecx bytes from stdin to the buf at ebx.
-// Blocks until at least one byte is available.
-// TODO: will need to change blocking behavior when
-//   making read() work with files.
+// Read up to edx bytes to the buf at ecx from file descriptor ebx.
+// If the file is stdin, blocks until at least one byte is available.
 // TODO: will need to rethink blocking implementation
 //   when adding multiple cores.
 // Returns eax = -1 on error.
 // Returns eax = # bytes read on success.
 void sys_read(struct syscall_registers *s) {
-    if (!is_valid_user_addr(s->ebx)) {
-        s->eax = -1;
+    if (!is_valid_user_addr(s->ecx)) {
+        s->eax = SYS_READ_BAD_BUF;
         return;
     }
-    if (!input_buffer_nonempty) {
-        struct proc *curr_proc = get_current_proc();
-        // kprintf("waiting read %d\n", curr_proc->pid);
-        curr_proc->status = WAITING_ON_READ;
-        __asm__ volatile ("int $0x20");
+    struct proc *curr_proc = get_current_proc();
+    if (!(curr_proc->fds[s->ebx].mode & FILE_MODE_READ)) {
+        s->eax = SYS_READ_BAD_PERMS;
+        return;
     }
-    char *buf = (char *) s->ebx;
-    u32 target = s->ecx;
-    u32 count = 0;
-    for (; count < target; count++) {
+    char *buf = (char *) s->ecx;
+    enum fd_status status = curr_proc->fds[s->ebx].status;
+    if (status == FD_STDIN) {
+        u32 target = s->edx;
+        // kprintf("before &s=%x\n", &s);
+        u32 esp;
+        __asm__ volatile ("mov %%esp, %0" : "=r"(esp));
         if (!input_buffer_nonempty) {
-            break;
+            struct proc *curr_proc = get_current_proc();
+            curr_proc->status = WAITING_ON_READ;
+            __asm__ volatile ("int $0x20" : : : "memory");
         }
-        buf[count] = input_buffer[input_buffer_read_ptr];
-        input_buffer_read_ptr = (input_buffer_read_ptr + 1) % INPUT_BUFFER_LEN;
-        if (input_buffer_read_ptr == input_buffer_write_ptr) {
-            input_buffer_nonempty = false;
+        u32 count = 0;
+        for (; count < target; count++) {
+            if (!input_buffer_nonempty) {
+                break;
+            }
+            buf[count] = input_buffer[input_buffer_read_ptr];
+            input_buffer_read_ptr = (input_buffer_read_ptr + 1) % INPUT_BUFFER_LEN;
+            if (input_buffer_read_ptr == input_buffer_write_ptr) {
+                input_buffer_nonempty = false;
+            }
         }
+        s->eax = count;
+        return;
+    } else {
+        struct inode *file = curr_proc->fds[s->ebx].file;
+        u32 ptr = curr_proc->fds[s->ebx].ptr;
+        s->eax = fs_read_bytes(file, ptr, s->edx, buf);
     }
-    s->eax = count;
 }
 
 // Spawns a new process from the file path specified by ebx.
@@ -77,6 +105,10 @@ void sys_spawn_proc(struct syscall_registers *s) {
     // TODO: update base of this to be cwd
     struct inode *prog = get_inode_by_path(get_current_proc()->cwd, (char *) s->ebx);
     if (prog == 0) {
+        s->eax = -1;
+        return;
+    }
+    if (prog->type != FT_FILE) {
         s->eax = -1;
         return;
     }

@@ -24,6 +24,27 @@ enum proc_status {
     KILLED,
 };
 
+
+enum fd_status {
+    FD_UNMAPPED,
+    FD_STDIN,
+    FD_STDOUT,
+    FD_STDERR,
+    FD_REGULAR,
+};
+
+#define FILE_MODE_READ  (1 << 1)
+#define FILE_MODE_WRITE (1 << 2)
+
+struct fd {
+    enum fd_status status;
+    u32 mode;
+    struct inode *file;
+    u32 ptr;
+};
+
+#define MAX_FDS 16
+
 struct proc {
     bool present;
     u32 pid;
@@ -39,6 +60,7 @@ struct proc {
     u32 kernel_bp;
     u32 brk;
     struct inode *cwd;
+    struct fd fds[MAX_FDS];
 };
 
 #define MAX_PROCS 256

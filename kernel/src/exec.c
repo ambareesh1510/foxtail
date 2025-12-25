@@ -182,6 +182,28 @@ struct proc *exec_helper(struct inode *prog_ptr) {
     // TODO: remove magic number
     new_proc->brk = 0x80000000;
     new_proc->cwd = get_root_inode();
+    // Fill fds
+    new_proc->fds[0] = (struct fd) {
+        .status = FD_STDOUT,
+        .mode = FILE_MODE_WRITE,
+        .file = 0,
+        .ptr = 0,
+    };
+    new_proc->fds[1] = (struct fd) {
+        .status = FD_STDIN,
+        .mode = FILE_MODE_READ,
+        .file = 0,
+        .ptr = 0,
+    };
+    new_proc->fds[2] = (struct fd) {
+        .status = FD_STDERR,
+        .mode = FILE_MODE_WRITE,
+        .file = 0,
+        .ptr = 0,
+    };
+    for (u32 i = 3; i < MAX_FDS; i++) {
+        new_proc->fds[i].status = FD_UNMAPPED;
+    }
     new_proc->present = true;
 
     // kprintf("new proc name=%s pid=%d: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",

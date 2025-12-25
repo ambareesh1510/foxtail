@@ -1,6 +1,8 @@
 #ifndef STRING_H
 #define STRING_H
 
+#include "syscall_defs.h"
+
 unsigned int strlen(const char *str) {
     unsigned int len = 0;
     while (str[len] != '\0') {
@@ -47,6 +49,10 @@ void memcpy(char *dst, const char *src, unsigned int size) {
 
 void memset(char *dst, char val, unsigned int size) {
     while (size--) *dst++ = val;
+}
+
+int puts(char *str) {
+    return write(0, str, strlen(str));
 }
 
 #endif /* STRING_H */
