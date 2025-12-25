@@ -15,11 +15,16 @@ enum syscall_code {
     SYS_REOPEN,
     SYS_CLOSE,
     SYS_SET_PTR,
+    SYS_FTYPE,
+    SYS_FILE_INFO,
+    SYS_DIR_INFO,
+    SYS_DIRENT_INFO,
 };
 
 #define SYS_WRITE_SUCCESS 0
 #define SYS_WRITE_BAD_BUF -1
-#define SYS_WRITE_BAD_PERMS -2
+#define SYS_WRITE_BAD_FD -2
+#define SYS_WRITE_BAD_PERMS -3
 
 // Write the null-terminated string `str` to stdout.
 // Returns: 0 on success, -1 on error.
@@ -35,7 +40,8 @@ static inline int write(int fd, const char *buf, unsigned int count) {
 }
 
 #define SYS_READ_BAD_BUF -1
-#define SYS_READ_BAD_PERMS -2
+#define SYS_READ_BAD_FD -2
+#define SYS_READ_BAD_PERMS -3
 
 // Read up to `count` bytes from `fd` into `buf`.
 // Returns: number of bytes read, or -1 on error
@@ -177,6 +183,67 @@ static inline int set_ptr(unsigned int fd, unsigned int ptr) {
         "int $0x80"
         : "=a"(ret)
         : "a"(SYS_SET_PTR), "b"(fd), "c"(ptr)
+        : "memory"
+    );
+    return ret; 
+}
+
+#define SYS_FTYPE_FILE 1
+#define SYS_FTYPE_DIR 2
+#define SYS_FTYPE_BAD_FD -1
+
+static inline int ftype(unsigned int fd) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_FTYPE), "b"(fd)
+        : "memory"
+    );
+    return ret; 
+}
+
+struct file_info {
+    unsigned int size;
+};
+
+static inline int file_info(unsigned int fd, struct file_info *info) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_FILE_INFO), "b"(fd), "c"(info)
+        : "memory"
+    );
+    return ret; 
+}
+
+struct dir_info {
+    unsigned int num_entries;
+};
+
+static inline int dir_info(unsigned int fd, struct dir_info *info) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_DIR_INFO), "b"(fd), "c"(info)
+        : "memory"
+    );
+    return ret; 
+}
+
+struct dirent_info {
+    unsigned int offset;
+    char name[28];
+};
+
+static inline int dirent_info(unsigned int fd, struct dirent_info *info) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_DIRENT_INFO), "b"(fd), "c"(info)
         : "memory"
     );
     return ret; 

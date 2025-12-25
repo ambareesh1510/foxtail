@@ -29,12 +29,20 @@ void sys_write(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
+    if (s->ebx >= MAX_FDS) {
+        s->eax = SYS_WRITE_BAD_FD;
+        return;
+    }
+    enum fd_status status = curr_proc->fds[s->ebx].status;
+    if (status !=  FD_REGULAR_FILE && status != FD_STDOUT && status != FD_STDERR) {
+        s->eax = SYS_WRITE_BAD_FD;
+        return;
+    }
     if (!(curr_proc->fds[s->ebx].mode & SYS_OPEN_FILE_MODE_WRITE)) {
         s->eax = SYS_WRITE_BAD_PERMS;
         return;
     }
     char *buf = (char *) s->ecx;
-    enum fd_status status = curr_proc->fds[s->ebx].status;
     if (status == FD_STDOUT || status == FD_STDERR) {
         for (u32 i = 0; i < s->edx; i++) {
             kprint_char(buf[i]);
@@ -61,12 +69,21 @@ void sys_read(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
+    // TODO: factor fd-checking helper out
+    if (s->ebx >= MAX_FDS) {
+        s->eax = SYS_READ_BAD_FD;
+        return;
+    }
+    enum fd_status status = curr_proc->fds[s->ebx].status;
+    if (status !=  FD_REGULAR_FILE && status != FD_STDIN) {
+        s->eax = SYS_READ_BAD_FD;
+        return;
+    }
     if (!(curr_proc->fds[s->ebx].mode & SYS_OPEN_FILE_MODE_READ)) {
         s->eax = SYS_READ_BAD_PERMS;
         return;
     }
     char *buf = (char *) s->ecx;
-    enum fd_status status = curr_proc->fds[s->ebx].status;
     if (status == FD_STDIN) {
         u32 target = s->edx;
         // kprintf("before &s=%x\n", &s);
@@ -124,7 +141,7 @@ void sys_spawn_proc(struct syscall_registers *s) {
         struct proc *curr_proc = get_current_proc();
         new_proc->parent = curr_proc->pid;
         new_proc->cwd = curr_proc->cwd;
-        kprintf("Spawn %d\n", new_proc->pid);
+        // kprintf("Spawn %d\n", new_proc->pid);
         s->eax = new_proc->pid;
     }
 }
@@ -136,8 +153,9 @@ void sys_getpid(struct syscall_registers *s) {
 void sys_exit(struct syscall_registers *s) {
     // TODO: this might not work: sys_exit has a stack frame on the kernel stack, but that kernel stack gets cleaned up in cleanup_proc(). 
     // Instead, we should store kernel stack addr in the proc struct and free it (in scheduler()) once the process is killed.
+    // TODO: in scheduler, we need to deal with killed processes that aren't being waited upon.
     cleanup_proc(get_current_proc());
-    kprintf("Kill %d\n", get_current_proc()->pid);
+    // kprintf("Kill %d\n", get_current_proc()->pid);
     __asm__ volatile ("int $0x20");
 }
 
@@ -179,6 +197,7 @@ void sys_sbrk(struct syscall_registers *s) {
     } 
 
     // Start allocating at 0x80000000.
+    // TODO: when adding resizeable kernel stack, make sure allocation doesn't overlap stack.
     kernel_pgtbl[PGDIR_LEN - 1] = curr_proc->cr3 | 0x3;
     flush_tlb();
     memcpy((char *) sbrk_temp_pgdir, (char *) temp_page_ptr, PGSIZE);
@@ -291,14 +310,14 @@ void sys_open(struct syscall_registers *s) {
     char *path = (char *) s->ebx;
     struct proc *curr_proc = get_current_proc();
     struct inode *target = get_inode_by_path(curr_proc->cwd, path);
-    if (target->type != FT_FILE) {
-        s->eax = -1;
-        return;
-    }
     // TODO: add permissions checking
     for (u32 i = 0; i < MAX_FDS; i++) {
         if (curr_proc->fds[i].status == FD_UNMAPPED) {
-            curr_proc->fds[i].status = FD_REGULAR;
+            if (target->type == FT_FILE) {
+                curr_proc->fds[i].status = FD_REGULAR_FILE;
+            } else {
+                curr_proc->fds[i].status = FD_REGULAR_DIRECTORY;
+            }
             curr_proc->fds[i].file = target;
             curr_proc->fds[i].mode = s->ecx;
             curr_proc->fds[i].ptr = 0;
@@ -323,13 +342,14 @@ void sys_reopen(struct syscall_registers *s) {
     char *path = (char *) s->ecx;
     struct proc *curr_proc = get_current_proc();
     struct inode *target = get_inode_by_path(curr_proc->cwd, path);
-    if (target->type != FT_FILE) {
-        s->eax = -1;
-        return;
-    }
 
     // TODO: add permissions checking
-    curr_proc->fds[s->ebx].status = FD_REGULAR;
+    if (target->type == FT_FILE) {
+        curr_proc->fds[s->ebx].status = FD_REGULAR_FILE;
+    } else {
+        curr_proc->fds[s->ebx].status = FD_REGULAR_DIRECTORY;
+    }
+    curr_proc->fds[s->ebx].status = FD_REGULAR_FILE;
     curr_proc->fds[s->ebx].file = target;
     curr_proc->fds[s->ebx].mode = s->edx;
     curr_proc->fds[s->ebx].ptr = 0;
@@ -358,7 +378,7 @@ void sys_set_ptr(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
-    if (curr_proc->fds[s->ebx].status != FD_REGULAR) {
+    if (curr_proc->fds[s->ebx].status != FD_REGULAR_FILE) {
         s->eax = -1;
         return;
     }
@@ -368,6 +388,100 @@ void sys_set_ptr(struct syscall_registers *s) {
     );
     curr_proc->fds[s->ebx].ptr = ptr;
     s->eax = ptr;
+    return;
+}
+
+// File type of fd in ebx.
+void sys_ftype(struct syscall_registers *s) {
+    if (s->ebx >= MAX_FDS) {
+        s->eax = SYS_FTYPE_BAD_FD;
+        return;
+    }
+    struct proc *curr_proc = get_current_proc();
+    enum fd_status status = curr_proc->fds[s->ebx].status;
+    if (status == FD_REGULAR_FILE) {
+        s->eax = SYS_FTYPE_FILE;
+        return;
+    } else if (status == FD_REGULAR_DIRECTORY) {
+        s->eax = SYS_FTYPE_DIR;
+        return;
+    } else {
+        s->eax = SYS_FTYPE_BAD_FD;
+        return;
+    }
+}
+
+// Writes file info of fd ebx to (struct file_info *) in ecx.
+void sys_file_info(struct syscall_registers *s) {
+    if (s->ebx >= MAX_FDS) {
+        s->eax = -1;
+        return;
+    }
+    struct proc *curr_proc = get_current_proc();
+    if (curr_proc->fds[s->ebx].status != FD_REGULAR_FILE) {
+        s->eax = -1;
+        return;
+    }
+    if (!is_valid_user_addr(s->ecx)) {
+        s->eax = -1;
+        return;
+    }
+    struct file_info *info = (struct file_info *) s->ecx;
+    info->size = curr_proc->fds[s->ebx].file->data.file_data.size;
+    s->eax = 0;
+}
+
+// Writes dir info of fd ebx to (struct dir_info *) in ecx.
+void sys_dir_info(struct syscall_registers *s) {
+    if (s->ebx >= MAX_FDS) {
+        s->eax = -1;
+        return;
+    }
+    struct proc *curr_proc = get_current_proc();
+    if (curr_proc->fds[s->ebx].status != FD_REGULAR_DIRECTORY) {
+        s->eax = -1;
+        return;
+    }
+    if (!is_valid_user_addr(s->ecx)) {
+        s->eax = -1;
+        return;
+    }
+    struct dir_info *info = (struct dir_info *) s->ecx;
+    info->num_entries = curr_proc->fds[s->ebx].file->data.directory_data.num_entries;
+    s->eax = 0;
+}
+
+// Writes dirent info of entry inside fd ebx, with offset provided in the (struct dirent_info *) ecx, to ecx.
+void sys_dirent_info(struct syscall_registers *s) {
+    if (s->ebx >= MAX_FDS) {
+        s->eax = -1;
+        return;
+    }
+    struct proc *curr_proc = get_current_proc();
+    if (curr_proc->fds[s->ebx].status != FD_REGULAR_DIRECTORY) {
+        s->eax = -1;
+        return;
+    }
+    if (!is_valid_user_addr(s->ecx)) {
+        s->eax = -1;
+        return;
+    }
+    struct dirent_info *info = (struct dirent_info *) s->ecx;
+    struct inode *dir = curr_proc->fds[s->ebx].file;
+    // TODO: update when adding indirect blocks
+    if (info->offset > dir->data.directory_data.num_entries) {
+        s->eax = -1;
+        return;
+    }
+    struct inode *dirent_inode = get_inode_at_idx(
+        dir->data.directory_data.direct_files[info->offset]
+    );
+    strcpy(
+        info->name,
+        dirent_inode->name
+    );
+    info->offset++;
+    s->eax = 0;
     return;
 }
 
@@ -412,6 +526,18 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
             break;
         case SYS_SET_PTR:
             sys_set_ptr(s);
+            break;
+        case SYS_FTYPE:
+            sys_ftype(s);
+            break;
+        case SYS_FILE_INFO:
+            sys_file_info(s);
+            break;
+        case SYS_DIR_INFO:
+            sys_dir_info(s);
+            break;
+        case SYS_DIRENT_INFO:
+            sys_dirent_info(s);
             break;
         default:
             kprintf("Invalid syscall code: %d\n", s->eax);

@@ -29,7 +29,8 @@ enum fd_status {
     FD_STDIN,
     FD_STDOUT,
     FD_STDERR,
-    FD_REGULAR,
+    FD_REGULAR_FILE,
+    FD_REGULAR_DIRECTORY,
 };
 
 struct fd {
