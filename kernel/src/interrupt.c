@@ -84,7 +84,7 @@ void timer_interrupt_handler() {
     __asm__ volatile (
         // "push %%esp; push %0\n; call kprintf; add $0x8, %%esp\n"
         // "iret\n"
-        "cli\n"
+        // "cli\n"
         "pushal\n"
         // "push %%esp\n"
         "cld\n"
@@ -98,7 +98,7 @@ void timer_interrupt_handler() {
         "not_embryo:\n"
         // "add $0x4, %%esp\n"
         "popal\n"
-        "sti\n"
+        // "sti\n"
         "iret\n"
         : :
           "m"(a),
@@ -118,6 +118,7 @@ char ctx_switch_temp_stack[2 * PGSIZE];
 u32 timer_interrupt_handler_inner(
     // struct regs_and_interrupt_frame *f
 ) {
+    pic_send_eoi(0);
     __asm__ volatile("mov 4(%%ebp), %0" : "=r"(global_ra));
     if (!proc_exists) {
         goto timer_handler_default;
@@ -197,7 +198,6 @@ timer_handler_default:
     //     f->frame.ip, f->frame.cs, f->frame.flags,
     //     f->frame.sp, f->frame.ss);
     ticks++;
-    pic_send_eoi(0);
     // pic_send_eoi(0);
     if (!proc_exists) {
         return 0;
