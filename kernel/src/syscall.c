@@ -324,6 +324,7 @@ void sys_open(struct syscall_registers *s) {
                 curr_proc->fds[i].status = FD_REGULAR_DIRECTORY;
             }
             curr_proc->fds[i].file = target;
+            acquire_inode(target);
             curr_proc->fds[i].mode = s->ecx;
             curr_proc->fds[i].ptr = 0;
             s->eax = i;
@@ -348,6 +349,11 @@ void sys_reopen(struct syscall_registers *s) {
     struct proc *curr_proc = get_current_proc();
     struct inode *target = get_inode_by_path(curr_proc->cwd, path);
 
+    enum fd_status status = curr_proc->fds[s->ebx].status;
+    if (status == FD_REGULAR_FILE || status == FD_REGULAR_DIRECTORY) {
+        release_inode(curr_proc->fds[s->ebx].file);
+    }
+
     // TODO: add permissions checking
     if (target->type == FT_FILE) {
         curr_proc->fds[s->ebx].status = FD_REGULAR_FILE;
@@ -356,6 +362,7 @@ void sys_reopen(struct syscall_registers *s) {
     }
     curr_proc->fds[s->ebx].status = FD_REGULAR_FILE;
     curr_proc->fds[s->ebx].file = target;
+    acquire_inode(target);
     curr_proc->fds[s->ebx].mode = s->edx;
     curr_proc->fds[s->ebx].ptr = 0;
     s->eax = s->ebx;
@@ -371,6 +378,10 @@ void sys_close(struct syscall_registers *s) {
     if (curr_proc->fds[s->ebx].status == FD_UNMAPPED) {
         s->eax = -1;
         return;
+    }
+    enum fd_status status = curr_proc->fds[s->ebx].status;
+    if (status == FD_REGULAR_FILE || status == FD_REGULAR_DIRECTORY) {
+        release_inode(curr_proc->fds[s->ebx].file);
     }
     curr_proc->fds[s->ebx].status = FD_UNMAPPED;
     s->eax = 0;
@@ -539,6 +550,7 @@ void sys_create(struct syscall_registers *s) {
     }
     strcpy(new_inode->name, new_path);
     new_inode->parent = get_index_from_inode(parent_inode);
+    new_inode->valid = 1;
     if (s->edx == SYS_CREATE_FILE) {
         new_inode->type = FT_FILE;
         new_inode->data.file_data.size = 0;
@@ -566,6 +578,10 @@ void sys_delete(struct syscall_registers *s) {
         s->eax = -1;
         return;
     }
+    if (inode->type == FT_DIRECTORY && inode->data.directory_data.num_entries != 0) {
+        s->eax = -1;
+        return;
+    }
     u32 inode_idx = get_index_from_inode(inode);
     struct inode *parent = get_inode_at_idx(inode->parent);
     for (u32 i = 0; i < parent->data.directory_data.num_entries; i++) {
@@ -578,7 +594,12 @@ void sys_delete(struct syscall_registers *s) {
             i--;
         }
     }
-    s->eax = free_inode(inode);
+    if (inode->num_refs == 0) {
+        free_inode(inode);
+    } else {
+        inode->valid = 0;
+    }
+    s->eax = 0;
     return;
 }
 

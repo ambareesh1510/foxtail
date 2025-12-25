@@ -32,6 +32,8 @@ size_t process_file(
     struct inode new_inode = {0};
     strncpy(new_inode.name, get_filename(name), FILENAME_MAX_LEN - 1);
     new_inode.type = FT_FILE;
+    new_inode.valid = 1;
+    new_inode.num_refs = 0;
     char buf[BLOCK_SIZE] = {0};
     size_t inode_block_idx = 0;
     size_t total_size = 0;
@@ -88,6 +90,8 @@ int process_dir(
     }
     printf("[LOG] Adding dir %s\n", new_inode.name);
     new_inode.type = FT_DIRECTORY;
+    new_inode.valid = 1;
+    new_inode.num_refs = 0;
     new_inode.data.directory_data.num_entries = 0;
     size_t dirent_idx = 0;
     // TODO: write blocks for dir

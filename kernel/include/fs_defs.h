@@ -10,7 +10,7 @@ enum filetype {
     FT_FILE,
     FT_DIRECTORY,
 };
-#define NDIRECT 22
+#define NDIRECT 21
 #define FILE_MAX_SIZE (NDIRECT * BLOCK_SIZE)
 #define DIR_MAX_ENTRIES (NDIRECT)
 #define FILENAME_MAX_LEN 28
@@ -35,6 +35,9 @@ struct inode {
     enum filetype type;
     u32 parent;
     union inode_data data;
+    // valid = 0 if the file should be deleted
+    u16 valid;
+    u16 num_refs;
 };
 _Static_assert(sizeof(struct inode) == 128, "Bad inode size");
 

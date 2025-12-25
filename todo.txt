@@ -1,10 +1,9 @@
+"move file" syscall
+pipes
+alternative to fork/exec api (for pipes)
+fs page table
 exception handlers
 users and permissions
 kernel logging
 verify user-space pointers in syscalls
-"move file" syscall
-alternative to fork/exec api (for pipes)
-fs page table
-pipes
 fix keyboard driver
-fs refcounts

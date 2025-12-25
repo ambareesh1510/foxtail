@@ -39,19 +39,27 @@ struct inode *alloc_inode() {
     return 0;
 }
 
-i32 free_inode(struct inode *inode) {
+void free_inode(struct inode *inode) {
     if (inode->type == FT_FILE) {
         u32 num_blocks = (inode->data.file_data.size + BLOCK_SIZE - 1) / BLOCK_SIZE;
         for (u32 i = 0; i < num_blocks; i++) {
             free_block(inode->data.file_data.blocks[i]);
         }
-    } else if (inode->type == FT_DIRECTORY) {
-        if (inode->data.directory_data.num_entries != 0) {
-            return -1;
-        }
     }
     inode->type = FT_UNALLOCATED;
-    return 0;
+    return;
+}
+
+void acquire_inode(struct inode *inode) {
+    inode->num_refs++;
+}
+
+void release_inode(struct inode *inode) {
+    inode->num_refs--;
+    if (inode->valid == 0 && inode->num_refs == 0) {
+        free_inode(inode);
+        kprintf("delete inode %s\n", inode->name);
+    }
 }
 
 struct inode *get_inode_at_idx(u32 idx) {

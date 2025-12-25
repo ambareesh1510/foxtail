@@ -1,4 +1,5 @@
 #include "cleanup.h"
+#include "fs.h"
 #include "kprintf.h"
 #include "paging.h"
 #include "kstring.h"
@@ -33,6 +34,13 @@ void cleanup_proc(struct proc *proc) {
         free_page(cleanup_temp_pgdir[pgdir_entry_idx] / PGSIZE);
     }
     free_page(proc->cr3);
+
+    for (u32 i = 0; i < MAX_FDS; i++) {
+        enum fd_status status = proc->fds[i].status;
+        if (status == FD_REGULAR_FILE || status == FD_REGULAR_DIRECTORY) {
+            release_inode(proc->fds[i].file);
+        }
+    }
 
     // Set proc status to killed.
     proc->status = KILLED;

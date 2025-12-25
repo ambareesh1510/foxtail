@@ -6,7 +6,10 @@
 extern char fs[NUM_BLOCKS * BLOCK_SIZE];
 
 struct inode *alloc_inode();
-i32 free_inode(struct inode *inode);
+void free_inode(struct inode *inode);
+
+void acquire_inode(struct inode *inode);
+void release_inode(struct inode *inode);
 
 struct inode *get_inode_at_idx(u32 idx);
 

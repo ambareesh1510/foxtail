@@ -13,11 +13,15 @@ void _start() {
         puts("failed create dir\n");
         exit();
     }
+    int fd = open("newfile", SYS_OPEN_FILE_MODE_READ);
     int d_res = delete("newfile");
     if (d_res < 0) {
         puts("Failed delete newfile\n");
         exit();
     }
+    puts("Before close newfile\n");
+    close(fd);
+    puts("After close newfile\n");
     int res = open("hi/grub.cfg", SYS_OPEN_FILE_MODE_READ | SYS_OPEN_FILE_MODE_WRITE);
     if (res < 0) {
         printf("Failed to open\n");
