@@ -2,6 +2,7 @@
 #include "interrupt.h"
 #include "kprintf.h"
 #include "kstring.h"
+#include "syscall.h"
 #include "util.h"
 #include "vga.h"
 
@@ -44,9 +45,6 @@ void scheduler() {
         since_last_runnable++;
         i = (i + 1) % MAX_PROCS;
         enum proc_status status = ptable[i].status;
-        if (i == 1 || i == 0) {
-        // kprintf("Found idx=%d has status %d\n", i, status);
-        }
         if (status == EMBRYO || status == RUNNABLE) {
             scheduler_proc_index = i;
             since_last_runnable = 0;
@@ -54,11 +52,18 @@ void scheduler() {
             return;
         } else if (status == WAITING_ON_PID) {
             if (ptable[ptable[i].waiting_on].status == KILLED) {
+                // kprintf("pid %d killed, wake up %d\n", ptable[i].waiting_on, i);
                 ptable[i].status = RUNNABLE;
                 since_last_runnable = 0;
             }
-        } else if (status == WAITING_ON_READ) {
+        } else if (status == WAITING_ON_STDIN) {
             if (input_buffer_nonempty) {
+                ptable[i].status = RUNNABLE;
+                since_last_runnable = 0;
+            }
+        } else if (status == WAITING_ON_PIPE) {
+            u32 pipe_idx = ptable[i].waiting_on;
+            if (pipe_data[pipe_idx].write_ptr != pipe_data[pipe_idx].read_ptr) {
                 ptable[i].status = RUNNABLE;
                 since_last_runnable = 0;
             }

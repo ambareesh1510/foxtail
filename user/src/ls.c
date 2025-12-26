@@ -13,7 +13,11 @@ void _start(int argc, char **argv) {
         puts("Too many arguments\n");
         exit();
     }
-    cd(dir);
+    int cd_res = cd(dir);
+    if (cd_res < 0) {
+        puts("Couldn't find directory\n");
+        exit();
+    }
     int cwd_fd = open(".", 0);
     if (cwd_fd < 0) {
         puts("open failed\n");

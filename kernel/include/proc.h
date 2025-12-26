@@ -20,7 +20,8 @@ enum proc_status {
     EMBRYO,
     RUNNABLE,
     WAITING_ON_PID,
-    WAITING_ON_READ,
+    WAITING_ON_STDIN,
+    WAITING_ON_PIPE,
     KILLED,
 };
 
@@ -31,12 +32,16 @@ enum fd_status {
     FD_STDERR,
     FD_REGULAR_FILE,
     FD_REGULAR_DIRECTORY,
+    FD_PIPE,
 };
 
 struct fd {
     enum fd_status status;
     u32 mode;
-    struct inode *file;
+    union {
+        struct inode *file;
+        u32 pipe_idx;
+    } data;
     u32 ptr;
 };
 

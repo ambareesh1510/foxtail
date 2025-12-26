@@ -5,6 +5,7 @@
 #include "kstring.h"
 #include "pgalloc.h"
 #include "proc.h"
+#include "syscall.h"
 #include "util.h"
 
 u32 cleanup_temp_pgdir[PGDIR_LEN];
@@ -38,7 +39,9 @@ void cleanup_proc(struct proc *proc) {
     for (u32 i = 0; i < MAX_FDS; i++) {
         enum fd_status status = proc->fds[i].status;
         if (status == FD_REGULAR_FILE || status == FD_REGULAR_DIRECTORY) {
-            release_inode(proc->fds[i].file);
+            release_inode(proc->fds[i].data.file);
+        } else if (status == FD_PIPE) {
+            pipe_data[proc->fds[i].data.pipe_idx].num_refs--;
         }
     }
 

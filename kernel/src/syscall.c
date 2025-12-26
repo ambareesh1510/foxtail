@@ -13,6 +13,9 @@
 #include "kstring.h"
 #include "vga.h"
 
+char pipe_buffers[NUM_PIPE_BUFS][PIPE_BUF_SIZE] = {0};
+struct pipe_data pipe_data[NUM_PIPE_BUFS] = {0};
+
 // TODO: write a page fault handler that kills the process so that we can't access random memory
 
 bool is_valid_user_addr(u32 addr) {
@@ -34,7 +37,7 @@ void sys_write(struct syscall_registers *s) {
         return;
     }
     enum fd_status status = curr_proc->fds[s->ebx].status;
-    if (status !=  FD_REGULAR_FILE && status != FD_STDOUT && status != FD_STDERR) {
+    if (status !=  FD_REGULAR_FILE && status !=  FD_PIPE && status != FD_STDOUT && status != FD_STDERR) {
         s->eax = SYS_WRITE_BAD_FD;
         return;
     }
@@ -47,8 +50,30 @@ void sys_write(struct syscall_registers *s) {
         for (u32 i = 0; i < s->edx; i++) {
             kprint_char(buf[i]);
         }
+    } else if (status == FD_PIPE) {
+        u32 pipe_idx = curr_proc->fds[s->ebx].data.pipe_idx;
+        if (pipe_data[pipe_idx].num_refs < 2) {
+            // Read end is closed.
+            // TODO: proper error code
+            s->eax = -1;
+            return;
+        }
+        for (u32 i = 0; i < s->edx; i++) {
+            if (
+                (pipe_data[pipe_idx].internal_write_ptr + 1) % PIPE_BUF_SIZE == (pipe_data[pipe_idx].read_ptr) % PIPE_BUF_SIZE
+            ) {
+                // TODO: return bytes written
+                s->eax = -1;
+                break;
+            }
+            pipe_buffers[pipe_idx][pipe_data[pipe_idx].internal_write_ptr] = buf[i];
+            pipe_data[pipe_idx].internal_write_ptr = (pipe_data[pipe_idx].internal_write_ptr) + 1 % PIPE_BUF_SIZE;
+            if (buf[i] == '\n') {
+                pipe_data[pipe_idx].write_ptr = pipe_data[pipe_idx].internal_write_ptr;
+            }
+        }
     } else {
-        struct inode *file = curr_proc->fds[s->ebx].file;
+        struct inode *file = curr_proc->fds[s->ebx].data.file;
         u32 ptr = curr_proc->fds[s->ebx].ptr;
         s->eax = fs_write_bytes(file, ptr, s->edx, buf);
         curr_proc->fds[s->ebx].ptr += s->eax;
@@ -75,7 +100,7 @@ void sys_read(struct syscall_registers *s) {
         return;
     }
     enum fd_status status = curr_proc->fds[s->ebx].status;
-    if (status !=  FD_REGULAR_FILE && status != FD_STDIN) {
+    if (status !=  FD_REGULAR_FILE && status != FD_PIPE && status != FD_STDIN) {
         s->eax = SYS_READ_BAD_FD;
         return;
     }
@@ -85,15 +110,11 @@ void sys_read(struct syscall_registers *s) {
     }
     char *buf = (char *) s->ecx;
     if (status == FD_STDIN) {
-        u32 target = s->edx;
-        // kprintf("before &s=%x\n", &s);
-        u32 esp;
-        __asm__ volatile ("mov %%esp, %0" : "=r"(esp));
         if (!input_buffer_nonempty) {
-            struct proc *curr_proc = get_current_proc();
-            curr_proc->status = WAITING_ON_READ;
+            curr_proc->status = WAITING_ON_STDIN;
             __asm__ volatile ("int $0x20" : : : "memory");
         }
+        u32 target = s->edx;
         u32 count = 0;
         for (; count < target; count++) {
             if (!input_buffer_nonempty) {
@@ -107,8 +128,35 @@ void sys_read(struct syscall_registers *s) {
         }
         s->eax = count;
         return;
+    } else if (status == FD_PIPE) {
+        u32 pipe_idx = curr_proc->fds[s->ebx].data.pipe_idx;
+        if (pipe_data[pipe_idx].num_refs < 2) {
+            // Write end is closed.
+            // TODO: proper error code
+            s->eax = -1;
+            return;
+        }
+        if (pipe_data[pipe_idx].read_ptr == pipe_data[pipe_idx].write_ptr) {
+            curr_proc->status = WAITING_ON_PIPE;
+            curr_proc->waiting_on = pipe_idx;
+            __asm__ volatile ("int $0x20" : : : "memory");
+        }
+        u32 target = s->edx;
+        u32 count = 0;
+        for (; count < target; count++) {
+            if (pipe_data[pipe_idx].read_ptr == pipe_data[pipe_idx].write_ptr) {
+                break;
+            }
+            if (pipe_data[pipe_idx].read_ptr > pipe_data[pipe_idx].write_ptr)
+                panic("");
+            buf[count] = pipe_buffers[pipe_idx][pipe_data[pipe_idx].read_ptr];
+            // pipe_data[pipe_idx].read_ptr = (pipe_data[pipe_idx].read_ptr + 1) % PIPE_BUF_SIZE;
+            pipe_data[pipe_idx].read_ptr = (pipe_data[pipe_idx].read_ptr + 1);
+        }
+        s->eax = count;
+        return;
     } else {
-        struct inode *file = curr_proc->fds[s->ebx].file;
+        struct inode *file = curr_proc->fds[s->ebx].data.file;
         u32 ptr = curr_proc->fds[s->ebx].ptr;
         s->eax = fs_read_bytes(file, ptr, s->edx, buf);
         curr_proc->fds[s->ebx].ptr += s->eax;
@@ -343,7 +391,7 @@ void sys_open(struct syscall_registers *s) {
             } else {
                 panic("Unreachable\n");
             }
-            curr_proc->fds[i].file = target;
+            curr_proc->fds[i].data.file = target;
             acquire_inode(target);
             curr_proc->fds[i].mode = s->ecx;
             curr_proc->fds[i].ptr = 0;
@@ -375,7 +423,7 @@ void sys_reopen(struct syscall_registers *s) {
 
     enum fd_status status = curr_proc->fds[s->ebx].status;
     if (status == FD_REGULAR_FILE || status == FD_REGULAR_DIRECTORY) {
-        release_inode(curr_proc->fds[s->ebx].file);
+        release_inode(curr_proc->fds[s->ebx].data.file);
     }
 
     // TODO: add permissions checking
@@ -414,7 +462,7 @@ void sys_reopen(struct syscall_registers *s) {
         panic("Unreachable\n");
     }
     curr_proc->fds[s->ebx].status = FD_REGULAR_FILE;
-    curr_proc->fds[s->ebx].file = target;
+    curr_proc->fds[s->ebx].data.file = target;
     acquire_inode(target);
     curr_proc->fds[s->ebx].mode = s->edx;
     curr_proc->fds[s->ebx].ptr = 0;
@@ -434,7 +482,9 @@ void sys_close(struct syscall_registers *s) {
     }
     enum fd_status status = curr_proc->fds[s->ebx].status;
     if (status == FD_REGULAR_FILE || status == FD_REGULAR_DIRECTORY) {
-        release_inode(curr_proc->fds[s->ebx].file);
+        release_inode(curr_proc->fds[s->ebx].data.file);
+    } else if (status == FD_PIPE) {
+        pipe_data[curr_proc->fds[s->ebx].data.pipe_idx].num_refs--;
     }
     curr_proc->fds[s->ebx].status = FD_UNMAPPED;
     s->eax = 0;
@@ -453,7 +503,7 @@ void sys_set_ptr(struct syscall_registers *s) {
     }
     u32 ptr = min(
         s->ecx,
-        curr_proc->fds[s->ebx].file->data.file_data.size
+        curr_proc->fds[s->ebx].data.file->data.file_data.size
     );
     curr_proc->fds[s->ebx].ptr = ptr;
     s->eax = ptr;
@@ -467,7 +517,7 @@ void sys_ftype(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
-    enum filetype ft = curr_proc->fds[s->ebx].file->type;
+    enum filetype ft = curr_proc->fds[s->ebx].data.file->type;
     if (ft == FT_FILE) {
         s->eax = SYS_FTYPE_FILE;
         return;
@@ -490,7 +540,7 @@ void sys_file_info(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
-    if (curr_proc->fds[s->ebx].file->type != FT_FILE) {
+    if (curr_proc->fds[s->ebx].data.file->type != FT_FILE) {
         s->eax = -1;
         return;
     }
@@ -499,7 +549,7 @@ void sys_file_info(struct syscall_registers *s) {
         return;
     }
     struct file_info *info = (struct file_info *) s->ecx;
-    info->size = curr_proc->fds[s->ebx].file->data.file_data.size;
+    info->size = curr_proc->fds[s->ebx].data.file->data.file_data.size;
     s->eax = 0;
 }
 
@@ -510,7 +560,7 @@ void sys_dir_info(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
-    if (curr_proc->fds[s->ebx].file->type != FT_DIRECTORY) {
+    if (curr_proc->fds[s->ebx].data.file->type != FT_DIRECTORY) {
         s->eax = -1;
         return;
     }
@@ -519,7 +569,7 @@ void sys_dir_info(struct syscall_registers *s) {
         return;
     }
     struct dir_info *info = (struct dir_info *) s->ecx;
-    info->num_entries = curr_proc->fds[s->ebx].file->data.directory_data.num_entries;
+    info->num_entries = curr_proc->fds[s->ebx].data.file->data.directory_data.num_entries;
     s->eax = 0;
 }
 
@@ -530,7 +580,7 @@ void sys_dirent_info(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
-    if (curr_proc->fds[s->ebx].file->type != FT_DIRECTORY) {
+    if (curr_proc->fds[s->ebx].data.file->type != FT_DIRECTORY) {
         s->eax = -1;
         return;
     }
@@ -539,7 +589,7 @@ void sys_dirent_info(struct syscall_registers *s) {
         return;
     }
     struct dirent_info *info = (struct dirent_info *) s->ecx;
-    struct inode *dir = curr_proc->fds[s->ebx].file;
+    struct inode *dir = curr_proc->fds[s->ebx].data.file;
     // TODO: update when adding indirect blocks
     if (info->offset > dir->data.directory_data.num_entries) {
         s->eax = -1;
@@ -564,7 +614,7 @@ void sys_symlink_info(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
-    if (curr_proc->fds[s->ebx].file->type != FT_SYMLINK) {
+    if (curr_proc->fds[s->ebx].data.file->type != FT_SYMLINK) {
         s->eax = -1;
         return;
     }
@@ -572,7 +622,7 @@ void sys_symlink_info(struct syscall_registers *s) {
         s->eax = -1;
         return;
     }
-    struct inode *target = follow_symlink(curr_proc->fds[s->ebx].file);
+    struct inode *target = follow_symlink(curr_proc->fds[s->ebx].data.file);
     s->eax = path_helper(target, (char *) s->ecx, s->edx);
     return;
 }
@@ -779,6 +829,64 @@ void sys_harden(struct syscall_registers *s) {
     return;
 }
 
+
+// Create a pipe, open two fds, and write them to the (struct pipe *) in ebx.
+void sys_pipe(struct syscall_registers *s) {
+    if (!is_valid_user_addr(s->ebx)) {
+        s->eax = -1;
+        return;
+    }
+    struct proc *curr_proc = get_current_proc();
+    i32 read_fd = -1, write_fd = -1;
+    for (u32 i = 0; i < MAX_FDS; i++) {
+        if (curr_proc->fds[i].status == FD_UNMAPPED) {
+            if (read_fd == -1) {
+                read_fd = i;
+            } else {
+                write_fd = i;
+                break;
+            }
+        }
+    }
+    if (read_fd == -1 || write_fd == -1) {
+        s->eax = -1;
+        return;
+    }
+    i32 pipe_idx = -1;
+    for (u32 i = 0; i < NUM_PIPE_BUFS; i++) {
+        if (pipe_data[i].num_refs == 0) {
+            pipe_idx = i;
+            break;
+        }
+    }
+    if (pipe_idx == -1) {
+        s->eax = -1;
+        return;
+    }
+
+    pipe_data[pipe_idx].read_ptr = 0;
+    pipe_data[pipe_idx].write_ptr = 0;
+    pipe_data[pipe_idx].internal_write_ptr = 0;
+    pipe_data[pipe_idx].num_refs = 2;
+
+    curr_proc->fds[read_fd].status = FD_PIPE;
+    curr_proc->fds[read_fd].mode = SYS_OPEN_FILE_MODE_READ;
+    curr_proc->fds[read_fd].data.pipe_idx = pipe_idx;
+    curr_proc->fds[read_fd].ptr = 0;
+
+    curr_proc->fds[write_fd].status = FD_PIPE;
+    curr_proc->fds[write_fd].mode = SYS_OPEN_FILE_MODE_WRITE;
+    curr_proc->fds[write_fd].data.pipe_idx = pipe_idx;
+    curr_proc->fds[write_fd].ptr = 0;
+
+    struct pipe *pipe = (struct pipe *) s->ebx;
+    pipe->read_fd = read_fd;
+    pipe->write_fd = write_fd;
+    
+    s->eax = 0;
+    return;
+}
+
 void syscall_interrupt_handler_inner(struct syscall_registers *s) {
     // kprintf("Syscall with eax = %x, ebx = %x, ecx = %x, edx = %x\n", s->eax, s->ebx, s->ecx, s->edx);
     switch (s->eax) {
@@ -847,6 +955,9 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
             break;
         case SYS_HARDEN:
             sys_harden(s);
+            break;
+        case SYS_PIPE:
+            sys_pipe(s);
             break;
         default:
             kprintf("Invalid syscall code: %d\n", s->eax);

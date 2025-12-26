@@ -242,19 +242,19 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv) {
     new_proc->fds[0] = (struct fd) {
         .status = FD_STDOUT,
         .mode = SYS_OPEN_FILE_MODE_WRITE,
-        .file = 0,
+        .data.file = 0,
         .ptr = 0,
     };
     new_proc->fds[1] = (struct fd) {
         .status = FD_STDIN,
         .mode = SYS_OPEN_FILE_MODE_READ,
-        .file = 0,
+        .data.file = 0,
         .ptr = 0,
     };
     new_proc->fds[2] = (struct fd) {
         .status = FD_STDERR,
         .mode = SYS_OPEN_FILE_MODE_WRITE,
-        .file = 0,
+        .data.file = 0,
         .ptr = 0,
     };
     for (u32 i = 3; i < MAX_FDS; i++) {

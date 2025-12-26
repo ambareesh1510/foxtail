@@ -261,14 +261,22 @@ void keyboard_interrupt_handler(
 ) {
     u8 scancode = inb(0x60);
     kb_char = scancode;
-    if (kbd_US[scancode] != 0) {
+    if (scancode < 128 && kbd_US[scancode] != 0) {
         char c = kbd_US[scancode];
-        bool valid = ('0' <= c && c <= '9') || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || (c == '\n') || (c == ' ') || (c == '\b' && input_staging_buffer_write_ptr > 0);
+        bool valid =
+            ('0' <= c && c <= '9')
+            || ('a' <= c && c <= 'z')
+            || ('A' <= c && c <= 'Z')
+            || (c == '.')
+            || (c == '/')
+            || (c == '\n')
+            || (c == ' ')
+            || (c == '\b' && input_staging_buffer_write_ptr > 0);
         if (!valid) {
             goto keyboard_handler_end;
         }
         __asm__ volatile ("pushal");
-            kprint_char(c);
+        kprint_char(c);
         __asm__ volatile ("popal");
         input_staging_buffer[input_staging_buffer_write_ptr] = c;
         __asm__ volatile ("pushal");

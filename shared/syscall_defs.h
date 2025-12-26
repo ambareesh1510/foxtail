@@ -24,6 +24,7 @@ enum syscall_code {
     SYS_DELETE,
     SYS_LINK,
     SYS_HARDEN,
+    SYS_PIPE,
 };
 
 #define SYS_WRITE_SUCCESS 0
@@ -309,6 +310,22 @@ static inline int harden(const char *symlink) {
         "int $0x80"
         : "=a"(ret)
         : "a"(SYS_HARDEN), "b"(symlink)
+        : "memory"
+    );
+    return ret; 
+}
+
+struct pipe {
+    unsigned int read_fd;
+    unsigned int write_fd;
+};
+
+static inline int pipe(struct pipe *pipe) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_PIPE), "b"(pipe)
         : "memory"
     );
     return ret; 
