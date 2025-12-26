@@ -46,7 +46,7 @@ void _start(int argc, char **argv) {
         }
         int dirent_fd = open(my_dirent_info.name, 0);
         if (dirent_fd < 0) {
-            puts("failed opening dirent file\n");
+            printf("failed opening dirent file %s %d\n", my_dirent_info.name, dirent_fd);
             continue;
         }
         int dirent_ft = ftype(dirent_fd);
@@ -71,6 +71,7 @@ void _start(int argc, char **argv) {
             printf("[LINK] %s -> %s\n", my_dirent_info.name, buf);
             free(buf);
         }
+        close(dirent_fd);
     }
     exit();
 }

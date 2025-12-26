@@ -367,6 +367,7 @@ void sys_open(struct syscall_registers *s) {
     struct proc *curr_proc = get_current_proc();
     struct inode *target = get_inode_by_path(curr_proc->cwd, path);
     if (target == 0) {
+    kprintf("failed dirent\n");
         s->eax = -1;
         return;
     }

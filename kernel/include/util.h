@@ -13,7 +13,7 @@ typedef char i8;
 u32 min(u32 a, u32 b);
 u32 max(u32 a, u32 b);
 
-__attribute__ ((noreturn)) void panic(char *msg);
+__attribute__ ((noreturn)) void panic(char *msg, ...);
 
 void flush_tlb();
 

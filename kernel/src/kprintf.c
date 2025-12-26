@@ -107,9 +107,7 @@ void kprint(const char *str) {
     }
 }
 
-void kprintf(const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
+void vkprintf(const char *fmt, va_list args) {
     const char *curr = fmt;
     bool format_spec = false;
     while (*curr != 0) {
@@ -149,5 +147,11 @@ void kprintf(const char *fmt, ...) {
         }
         curr++;
     }
+}
+
+void kprintf(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vkprintf(fmt, args);
     va_end(args);
 }

@@ -1,3 +1,4 @@
+#include "cleanup.h"
 #include "gdt.h"
 #include "kprintf.h"
 #include "paging.h"
@@ -62,6 +63,75 @@ void pic_send_eoi(u8 irq) {
     outb(0x20, 0x20);
 }
 
+struct gp_fault_frame {
+    u32 error_code;
+    u32 ip;
+    u32 cs;
+    u32 eflags;
+};
+
+__attribute__ ((naked))
+void gp_fault_handler() {
+    __asm__ volatile (
+        "push %esp\n"
+        "call gp_fault_handler_inner\n"
+        "add $0x8, %esp\n"
+        "iret\n"
+    );
+}
+
+void gp_fault_handler_inner(struct gp_fault_frame *f) {
+    if ((f->cs & 0x3) == 3) {
+        struct proc *curr = get_current_proc();
+        cleanup_proc(curr);
+        kprintf("Killed process `%s` (PID %d): General Protection Fault\n", curr->name, curr->pid);
+        __asm__ volatile("int $0x20");
+    } else {
+        panic(
+            "General protection fault in kernel mode!\n"
+            "Error code: %x (EIP=0x%x CS = 0x%x)\n",
+            f->ip,
+            f->cs,
+            f->error_code
+        );
+    }
+    return;
+}
+
+__attribute__ ((naked))
+void page_fault_handler() {
+    __asm__ volatile (
+        "call page_fault_handler_inner\n"
+        "add $0x4, %esp\n"
+        "iret\n"
+    );
+}
+
+void page_fault_handler_inner(u32 error_code) {
+    u32 fault_addr;
+    __asm__ volatile (
+        "mov %%cr2, %0\n"
+        : "=r"(fault_addr)
+        : : "memory"
+    );
+    if ((error_code & 0x4) || (fault_addr < HIGHER_HALF_BASE)) {
+        struct proc *curr = get_current_proc();
+        cleanup_proc(curr);
+        kprintf("Killed process `%s` (PID %d): Page Fault\n", curr->name, curr->pid);
+        __asm__ volatile("int $0x20");
+    } else {
+        panic(
+            "Page fault in kernel mode! (address 0x%x)\n"
+            "Error code: %x (P=%d W=%d U=%d)\n",
+            fault_addr,
+            error_code,
+            error_code & 1,
+            (error_code >> 1) & 1,
+            (error_code >> 2) & 1
+        );
+    }
+    return;
+}
 
 struct __attribute__ ((packed)) regs_and_interrupt_frame {
     struct syscall_registers regs;
@@ -415,11 +485,26 @@ void pic_remap() {
 }
 
 #define IDT_FLAG_INTERRUPT_GATE 0x8E
+#define IDT_FLAG_USER_INTERRUPT_GATE 0xEE
 
 void 
 idt_load() {
     idt_desc.size = sizeof(idt) - 1;
     idt_desc.offset = (u32) &idt;
+
+    idt_write_entry(
+        0x0D,
+        (u32) gp_fault_handler,
+        0x08,
+        IDT_FLAG_INTERRUPT_GATE
+    );
+
+    idt_write_entry(
+        0x0E,
+        (u32) page_fault_handler,
+        0x08,
+        IDT_FLAG_INTERRUPT_GATE
+    );
 
     idt_write_entry(
         0x20,
@@ -439,7 +524,7 @@ idt_load() {
         0x80,
         (u32) syscall_interrupt_handler,
         0x08,
-        0xEE
+        IDT_FLAG_USER_INTERRUPT_GATE
     );
 
     __asm__ volatile ("lidt %0" : : "m" (idt_desc));

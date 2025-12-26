@@ -1,7 +1,5 @@
 fs page table
-exception handlers
 users and permissions
 kernel logging
 verify user-space pointers in syscalls
-fix keyboard driver
 exit codes

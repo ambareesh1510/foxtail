@@ -1,5 +1,6 @@
 #include "util.h"
 #include "kprintf.h"
+#include <stdarg.h>
 
 u32 min(u32 a, u32 b) {
     return (a < b) ? a : b;
@@ -14,8 +15,12 @@ void useless() {
 }
 
 __attribute__ ((noreturn))
-void panic(char *msg) {
-    kprintf("KERNEL PANIC: %s\n", msg);
+void panic(char *msg, ...) {
+    va_list args;
+    va_start(args, msg);
+    kprint("KERNEL PANIC: ");
+    vkprintf(msg, args);
+    va_end(args);
     __asm__ volatile ("cli");
     for (;;) {
         __asm__ volatile ("hlt");
