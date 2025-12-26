@@ -245,6 +245,41 @@ char kbd_US [128] =
     0,  /* All other keys are undefined */
 };
 
+char kbd_shift_US [128] =
+{
+    0,  27, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',   
+  '\t', /* <-- Tab */
+  'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '[', ']', '\n',     
+    0, /* <-- control key */
+  'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ';', '\'', '`',  0, '\\', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '/',   0,
+  '*',
+    0,  /* Alt */
+  ' ',  /* Space bar */
+    0,  /* Caps lock */
+    0,  /* 59 - F1 key ... > */
+    0,   0,   0,   0,   0,   0,   0,   0,
+    0,  /* < ... F10 */
+    0,  /* 69 - Num lock*/
+    0,  /* Scroll Lock */
+    0,  /* Home key */
+    0,  /* Up Arrow */
+    0,  /* Page Up */
+  '-',
+    0,  /* Left Arrow */
+    0,
+    0,  /* Right Arrow */
+  '+',
+    0,  /* 79 - End key*/
+    0,  /* Down Arrow */
+    0,  /* Page Down */
+    0,  /* Insert Key */
+    0,  /* Delete Key */
+    0,   0,   0,
+    0,  /* F11 Key */
+    0,  /* F12 Key */
+    0,  /* All other keys are undefined */
+};
+
 
 char input_staging_buffer[INPUT_BUFFER_LEN] = {0};
 u32 input_staging_buffer_write_ptr = 0;
@@ -255,23 +290,37 @@ u32 input_buffer_read_ptr = 0;
 
 bool input_buffer_nonempty = false;
 
+u32 shift_count = 0;
+
 __attribute__ ((interrupt))
 void keyboard_interrupt_handler(
     __attribute__ ((unused)) struct interrupt_frame *frame
 ) {
     u8 scancode = inb(0x60);
     kb_char = scancode;
+    if (scancode == 0x2A || scancode == 0x36) {
+        shift_count++;
+    }
+    if (scancode == 0xAA || scancode == 0xB6) {
+        shift_count--;
+    }
     if (scancode < 128 && kbd_US[scancode] != 0) {
-        char c = kbd_US[scancode];
-        bool valid =
-            ('0' <= c && c <= '9')
-            || ('a' <= c && c <= 'z')
-            || ('A' <= c && c <= 'Z')
-            || (c == '.')
-            || (c == '/')
-            || (c == '\n')
-            || (c == ' ')
-            || (c == '\b' && input_staging_buffer_write_ptr > 0);
+        char c;
+        if (shift_count > 0) {
+            c = kbd_shift_US[scancode];
+        } else {
+            c = kbd_US[scancode];
+        };
+        bool valid = (c != 0);
+        // bool valid =
+        //     ('0' <= c && c <= '9')
+        //     || ('a' <= c && c <= 'z')
+        //     || ('A' <= c && c <= 'Z')
+        //     || (c == '.')
+        //     || (c == '/')
+        //     || (c == '\n')
+        //     || (c == ' ')
+        //     || (c == '\b' && input_staging_buffer_write_ptr > 0);
         if (!valid) {
             goto keyboard_handler_end;
         }
