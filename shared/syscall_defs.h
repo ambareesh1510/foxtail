@@ -19,8 +19,11 @@ enum syscall_code {
     SYS_FILE_INFO,
     SYS_DIR_INFO,
     SYS_DIRENT_INFO,
+    SYS_SYMLINK_INFO,
     SYS_CREATE,
     SYS_DELETE,
+    SYS_LINK,
+    SYS_HARDEN,
 };
 
 #define SYS_WRITE_SUCCESS 0
@@ -83,8 +86,9 @@ static inline int getpid(void) {
     return ret;
 }
 
-// Exit current process
-// Does not return
+// Exit current process.
+// Does not return.
+__attribute__((noreturn))
 static inline void exit(void) {
     __asm__ volatile(
         "int $0x80"
@@ -192,6 +196,7 @@ static inline int set_ptr(unsigned int fd, unsigned int ptr) {
 
 #define SYS_FTYPE_FILE 1
 #define SYS_FTYPE_DIR 2
+#define SYS_FTYPE_SYMLINK 3
 #define SYS_FTYPE_BAD_FD -1
 
 static inline int ftype(unsigned int fd) {
@@ -251,6 +256,17 @@ static inline int dirent_info(unsigned int fd, struct dirent_info *info) {
     return ret; 
 }
 
+static inline int symlink_info(unsigned int fd, char *buf, unsigned int len) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_SYMLINK_INFO), "b"(fd), "c"(buf), "d"(len)
+        : "memory"
+    );
+    return ret; 
+}
+
 #define SYS_CREATE_FILE 0
 #define SYS_CREATE_DIR 1
 
@@ -271,6 +287,17 @@ static inline int delete(const char *path) {
         "int $0x80"
         : "=a"(ret)
         : "a"(SYS_DELETE), "b"(path)
+        : "memory"
+    );
+    return ret; 
+}
+
+static inline int link(const char *target, const char *link_dir, const char *link_path) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_LINK), "b"(target), "c"(link_dir), "d"(link_path)
         : "memory"
     );
     return ret; 

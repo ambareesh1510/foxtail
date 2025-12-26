@@ -7,11 +7,25 @@
 
 u32 cursor_row = 0, cursor_column = 0;
 
+void kprint_backspace() {
+    if (cursor_column == 0) {
+        if (cursor_row == 0) {
+            return;
+        }
+        cursor_row--;
+    } else {
+        cursor_column--;
+    }
+    kprint_char(' ');
+    if (cursor_column == 0) {
+        cursor_row--;
+    } else {
+        cursor_column--;
+    }
+}
+
 void kprint_next_line() {
     cursor_column = 0;
-    // if (cursor_row < VGA_HEIGHT - 1)
-    //     cursor_row++;
-    // return;
     if (cursor_row == VGA_HEIGHT - 1) {
         for (u32 y = 0; y < VGA_HEIGHT - 1; y++) {
             for (u32 x = 0; x < VGA_WIDTH; x++) {
@@ -75,6 +89,8 @@ void kprint_uint32_dec(u32 value, char* buf) {
 void kprint_char(char c) {
     if (c == '\n') {
         kprint_next_line();
+    } else if (c == '\b') {
+        kprint_backspace();
     } else {
         vga_putch_at(c, cursor_row, cursor_column, 0x07);
         cursor_column++;
@@ -115,6 +131,8 @@ void kprintf(const char *fmt, ...) {
             format_spec = false;
         } else if (*curr == '%') {
             format_spec = true;
+        } else if (*curr == '\b') {
+            kprint_backspace();
         } else if (*curr == '\n') {
             kprint_next_line();
         } else {

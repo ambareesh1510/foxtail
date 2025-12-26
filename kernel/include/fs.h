@@ -11,6 +11,9 @@ void free_inode(struct inode *inode);
 void acquire_inode(struct inode *inode);
 void release_inode(struct inode *inode);
 
+#define SYMLINK_RECURSION_LIMIT 10
+struct inode *follow_symlink(struct inode *link);
+
 struct inode *get_inode_at_idx(u32 idx);
 
 u32 get_index_from_inode(struct inode *inode);

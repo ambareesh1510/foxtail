@@ -3,7 +3,17 @@
 #include "string.h"
 #include "malloc.h"
 
-void _start() {
+void _start(int argc, char **argv) {
+    char *dir;
+    if (argc == 1) {
+        dir = ".";
+    } else if (argc == 2) {
+        dir = argv[1];
+    } else {
+        puts("Too many arguments\n");
+        exit();
+    }
+    cd(dir);
     int cwd_fd = open(".", 0);
     if (cwd_fd < 0) {
         puts("open failed\n");
@@ -42,11 +52,20 @@ void _start() {
         if (dirent_ft == SYS_FTYPE_FILE) {
             struct file_info my_dirent_file_info;
             file_info(dirent_fd, &my_dirent_file_info);
-            printf("[F] %d %s\n", my_dirent_file_info.size, my_dirent_info.name);
+            printf("[FILE] %d %s\n", my_dirent_file_info.size, my_dirent_info.name);
         } else if (dirent_ft == SYS_FTYPE_DIR) {
             struct dir_info my_dirent_dir_info;
             dir_info(dirent_fd, &my_dirent_dir_info);
-            printf("[D] %d %s/\n", my_dirent_dir_info.num_entries, my_dirent_info.name);
+            printf("[DIR ] %d %s/\n", my_dirent_dir_info.num_entries, my_dirent_info.name);
+        } else if (dirent_ft == SYS_FTYPE_SYMLINK) {
+            unsigned int len = 100;
+            char *buf = malloc(len);
+            while (symlink_info(dirent_fd, buf, len) < 0) {
+                len *= 2;
+                buf = realloc(buf, len);
+            }
+            printf("[LINK] %s -> %s\n", my_dirent_info.name, buf);
+            free(buf);
         }
     }
     exit();

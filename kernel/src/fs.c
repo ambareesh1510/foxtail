@@ -62,6 +62,22 @@ void release_inode(struct inode *inode) {
     }
 }
 
+struct inode *follow_symlink(struct inode *link) {
+    u32 depth = 0;
+    while (link->type == FT_SYMLINK) {
+        depth++;
+        link= get_inode_at_idx(link->data.symlink_data.target);
+        if (link->type == FT_UNALLOCATED) {
+            return 0;
+        }
+        if (depth > SYMLINK_RECURSION_LIMIT) {
+            return 0;
+        }
+    }
+    return link;
+}
+
+
 struct inode *get_inode_at_idx(u32 idx) {
     return (struct inode *) (fs + NUM_BITMAP_BLOCKS * BLOCK_SIZE + idx * sizeof(struct inode));
 }
@@ -83,6 +99,10 @@ struct inode *get_inode_by_path(
     if (strlen(path) == 0) {
         return base;
     }
+    // TODO: follow symlinks only if we're going deeper
+    // does this approach work?
+    u32 depth = 0;
+    base = follow_symlink(base);
     if (base->type == FT_FILE) {
         return 0;
     }
@@ -157,6 +177,7 @@ u32 get_block_from_inode_offset(
 #define BLOCK_ROUND_UP(x) (((x + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE)
 
 u32 fs_move_bytes(struct inode *inode, u32 offset, u32 size, char *buf, bool is_read) {
+    inode = follow_symlink(inode);
     // If it's a write and the file isn't big enough, allocate more blocks
     // TODO: test this
     if (!is_read) {

@@ -129,6 +129,7 @@ void sys_spawn_proc(struct syscall_registers *s) {
         s->eax = -1;
         return;
     }
+    prog = follow_symlink(prog);
     if (prog->type != FT_FILE) {
         s->eax = -1;
         return;
@@ -269,15 +270,9 @@ void sys_cd(struct syscall_registers *s) {
     s->eax = 0;
 }
 
-// Writes the full path of the pwd into the buf at ebx (whose length is ecx).
-// Fails if the buf isn't large enough to accomodate the full path + null terminator.
-void sys_pwd(struct syscall_registers *s) {
-    // TODO: add "." and ".." entries in directory inode
-
-    // Recurse up the tree and compute the length of the path
-    struct proc *curr_proc = get_current_proc();
+i32 path_helper(struct inode *inode, char *buf, u32 buf_len) {
     u32 len = 0;
-    struct inode *curr = curr_proc->cwd;
+    struct inode *curr = inode;
     while (strcmp(curr->name, FS_ROOT_PATH) != 0) {
         // strlen + path separator ('/')
         len += strlen(curr->name) + 1;
@@ -285,13 +280,11 @@ void sys_pwd(struct syscall_registers *s) {
     }
     // strlen + null terminator
     len += strlen(curr->name) + 1;
-    if (len > s->ecx) {
-        s->eax = -1;
-        return;
+    if (len > buf_len) {
+        return -1;
     }
     // Then copy from the back
-    curr = curr_proc->cwd;
-    char *buf = (char *) s->ebx;
+    curr = inode;
     len -= 1;
     buf[len] = '\0';
     while (strcmp(curr->name, FS_ROOT_PATH) != 0) {
@@ -303,7 +296,19 @@ void sys_pwd(struct syscall_registers *s) {
         curr = get_inode_at_idx(curr->parent);
     }
     memcpy(buf, curr->name, strlen(curr->name));
-    s->eax = 0;
+    return 0;
+}
+
+// Writes the full path of the pwd into the buf at ebx (whose length is ecx).
+// Fails if the buf isn't large enough to accomodate the full path + null terminator.
+void sys_pwd(struct syscall_registers *s) {
+    // Recurse up the tree and compute the length of the path
+    if (!is_valid_user_addr(s->ebx)) {
+        s->eax = -1;
+        return;
+    }
+    struct proc *curr_proc = get_current_proc();
+    s->eax = path_helper(curr_proc->cwd, (char *) s->ebx, s->ecx);
     return;
 }
 
@@ -315,13 +320,28 @@ void sys_open(struct syscall_registers *s) {
     char *path = (char *) s->ebx;
     struct proc *curr_proc = get_current_proc();
     struct inode *target = get_inode_by_path(curr_proc->cwd, path);
+    if (target == 0) {
+        s->eax = -1;
+        return;
+    }
     // TODO: add permissions checking
     for (u32 i = 0; i < MAX_FDS; i++) {
         if (curr_proc->fds[i].status == FD_UNMAPPED) {
             if (target->type == FT_FILE) {
                 curr_proc->fds[i].status = FD_REGULAR_FILE;
-            } else {
+            } else if (target->type == FT_DIRECTORY) {
                 curr_proc->fds[i].status = FD_REGULAR_DIRECTORY;
+            } else if (target->type == FT_SYMLINK) {
+                struct inode *symlink_target = follow_symlink(target);
+                if (symlink_target->type == FT_FILE) {
+                    curr_proc->fds[i].status = FD_REGULAR_FILE;
+                } else if (symlink_target->type == FT_DIRECTORY) {
+                    curr_proc->fds[i].status = FD_REGULAR_DIRECTORY;
+                } else {
+                    panic("Unreachable\n");
+                }
+            } else {
+                panic("Unreachable\n");
             }
             curr_proc->fds[i].file = target;
             acquire_inode(target);
@@ -348,6 +368,10 @@ void sys_reopen(struct syscall_registers *s) {
     char *path = (char *) s->ecx;
     struct proc *curr_proc = get_current_proc();
     struct inode *target = get_inode_by_path(curr_proc->cwd, path);
+    if (target == 0) {
+        s->eax = -1;
+        return;
+    }
 
     enum fd_status status = curr_proc->fds[s->ebx].status;
     if (status == FD_REGULAR_FILE || status == FD_REGULAR_DIRECTORY) {
@@ -355,10 +379,39 @@ void sys_reopen(struct syscall_registers *s) {
     }
 
     // TODO: add permissions checking
+    // if (target->type == FT_FILE) {
+    //     curr_proc->fds[s->ebx].status = FD_REGULAR_FILE;
+    // } else {
+    //     curr_proc->fds[s->ebx].status = FD_REGULAR_DIRECTORY;
+    // }
     if (target->type == FT_FILE) {
         curr_proc->fds[s->ebx].status = FD_REGULAR_FILE;
-    } else {
+    } else if (target->type == FT_DIRECTORY) {
         curr_proc->fds[s->ebx].status = FD_REGULAR_DIRECTORY;
+    } else if (target->type == FT_SYMLINK) {
+        struct inode *symlink_target = get_inode_at_idx(target->data.symlink_data.target);
+        u32 depth = 0;
+        while (symlink_target->type == FT_SYMLINK) {
+            depth++;
+            symlink_target = get_inode_at_idx(symlink_target->data.symlink_data.target);
+            if (symlink_target->type == FT_UNALLOCATED) {
+                s->eax = -1;
+                return;
+            }
+            if (depth > SYMLINK_RECURSION_LIMIT) {
+                s->eax = -1;
+                return;
+            }
+        }
+        if (symlink_target->type == FT_FILE) {
+            curr_proc->fds[s->ebx].status = FD_REGULAR_FILE;
+        } else if (symlink_target->type == FT_DIRECTORY) {
+            curr_proc->fds[s->ebx].status = FD_REGULAR_DIRECTORY;
+        } else {
+            panic("Unreachable\n");
+        }
+    } else {
+        panic("Unreachable\n");
     }
     curr_proc->fds[s->ebx].status = FD_REGULAR_FILE;
     curr_proc->fds[s->ebx].file = target;
@@ -414,12 +467,15 @@ void sys_ftype(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
-    enum fd_status status = curr_proc->fds[s->ebx].status;
-    if (status == FD_REGULAR_FILE) {
+    enum filetype ft = curr_proc->fds[s->ebx].file->type;
+    if (ft == FT_FILE) {
         s->eax = SYS_FTYPE_FILE;
         return;
-    } else if (status == FD_REGULAR_DIRECTORY) {
+    } else if (ft == FT_DIRECTORY) {
         s->eax = SYS_FTYPE_DIR;
+        return;
+    } else if (ft == FT_SYMLINK) {
+        s->eax = SYS_FTYPE_SYMLINK;
         return;
     } else {
         s->eax = SYS_FTYPE_BAD_FD;
@@ -434,7 +490,7 @@ void sys_file_info(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
-    if (curr_proc->fds[s->ebx].status != FD_REGULAR_FILE) {
+    if (curr_proc->fds[s->ebx].file->type != FT_FILE) {
         s->eax = -1;
         return;
     }
@@ -454,7 +510,7 @@ void sys_dir_info(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
-    if (curr_proc->fds[s->ebx].status != FD_REGULAR_DIRECTORY) {
+    if (curr_proc->fds[s->ebx].file->type != FT_DIRECTORY) {
         s->eax = -1;
         return;
     }
@@ -474,7 +530,7 @@ void sys_dirent_info(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
-    if (curr_proc->fds[s->ebx].status != FD_REGULAR_DIRECTORY) {
+    if (curr_proc->fds[s->ebx].file->type != FT_DIRECTORY) {
         s->eax = -1;
         return;
     }
@@ -498,6 +554,26 @@ void sys_dirent_info(struct syscall_registers *s) {
     );
     info->offset++;
     s->eax = 0;
+    return;
+}
+
+// Writes the path of the symlink target ebx into the buf at ecx (which has length edx).
+void sys_symlink_info(struct syscall_registers *s) {
+    if (s->ebx >= MAX_FDS) {
+        s->eax = -1;
+        return;
+    }
+    struct proc *curr_proc = get_current_proc();
+    if (curr_proc->fds[s->ebx].file->type != FT_SYMLINK) {
+        s->eax = -1;
+        return;
+    }
+    if (!is_valid_user_addr(s->ecx)) {
+        s->eax = -1;
+        return;
+    }
+    struct inode *target = follow_symlink(curr_proc->fds[s->ebx].file);
+    s->eax = path_helper(target, (char *) s->ecx, s->edx);
     return;
 }
 
@@ -534,6 +610,7 @@ void sys_create(struct syscall_registers *s) {
         return;
     }
     for (u32 i = 0; i < new_path_len; i++) {
+        // TODO: check contains path separator
         if (new_path[i] == '/') {
             s->eax = -1;
             return;
@@ -603,6 +680,105 @@ void sys_delete(struct syscall_registers *s) {
     return;
 }
 
+// Create a symlink in dir ecx with filename edx, pointing to ebx.
+void sys_link(struct syscall_registers *s) {
+    if (!is_valid_user_addr(s->ebx) || !is_valid_user_addr(s->ecx) || !is_valid_user_addr(s->edx)) {
+        s->eax = -1;
+        return;
+    }
+
+    struct proc *curr_proc = get_current_proc();
+    struct inode *target = get_inode_by_path(curr_proc->cwd, (char *) s->ebx);
+    if (target == 0) {
+        s->eax = -1;
+        return;
+    }
+    struct inode *link_dir = get_inode_by_path(curr_proc->cwd, (char *) s->ecx);
+    if (link_dir == 0) {
+        s->eax = -1;
+        return;
+    }
+    if (link_dir->type != FT_DIRECTORY) {
+        s->eax = -1;
+        return;
+    }
+    if (link_dir->data.directory_data.num_entries >= DIR_MAX_ENTRIES) {
+        s->eax = -1;
+        return;
+    }
+    char *new_path = (char *) s->edx;
+    u32 new_path_len = strlen(new_path);
+    if (new_path_len > FILENAME_MAX_LEN - 1) {
+        s->eax = -1;
+        return;
+    }
+    for (u32 i = 0; i < new_path_len; i++) {
+        // TODO: check contains path separator
+        if (new_path[i] == '/') {
+            s->eax = -1;
+            return;
+        }
+    }
+    struct inode *link_inode = get_inode_by_path(link_dir, new_path);
+    if (link_inode != 0 && link_inode->type != FT_SYMLINK) {
+        s->eax = -1;
+        return;
+    }
+    if (link_inode == 0) {
+        link_inode = alloc_inode();
+        if (link_inode == 0) {
+            s->eax = -1;
+            return;
+        }
+    }
+    strcpy(link_inode->name, new_path);
+    link_inode->parent = get_index_from_inode(link_dir);
+    link_inode->valid = 1;
+    link_inode->type = FT_SYMLINK;
+    link_inode->data.symlink_data.target = get_index_from_inode(target);
+
+    u32 curr_num_entries = link_dir->data.directory_data.num_entries;
+    link_dir->data.directory_data.direct_files[curr_num_entries] = get_index_from_inode(link_inode);
+    link_dir->data.directory_data.num_entries++;
+    s->eax = 0;
+    return;
+}
+
+// Harden the symlink at ebx.
+void sys_harden(struct syscall_registers *s) {
+    if (!is_valid_user_addr(s->ebx)) {
+        s->eax = -1;
+        return;
+    }
+    char *path = (char *) s->ebx;
+    struct proc *curr_proc = get_current_proc();
+    struct inode *symlink = get_inode_by_path(curr_proc->cwd, path);
+    if (symlink == 0) {
+        s->eax = -1;
+        return;
+    }
+    if (symlink->type != FT_SYMLINK) {
+        s->eax = -1;
+        return;
+    }
+    struct inode *symlink_target = get_inode_at_idx(symlink->data.symlink_data.target);
+    if (symlink_target->type != FT_FILE && symlink_target->type != FT_DIRECTORY) {
+        s->eax = -1;
+        return;
+    }
+
+    // Copy all data from file to symlink except for names.
+    // Update symlink in old file.
+    char temp_name[FILENAME_MAX_LEN];
+    memcpy(temp_name, symlink->name, sizeof(struct inode));
+    memcpy((char *) symlink, (char *) symlink_target, sizeof(struct inode));
+    memcpy(symlink->name, temp_name, FILENAME_MAX_LEN);
+    symlink_target->type = FT_SYMLINK;
+    symlink_target->data.symlink_data.target = get_index_from_inode(symlink);
+    s->eax = 0;
+    return;
+}
+
 void syscall_interrupt_handler_inner(struct syscall_registers *s) {
     // kprintf("Syscall with eax = %x, ebx = %x, ecx = %x, edx = %x\n", s->eax, s->ebx, s->ecx, s->edx);
     switch (s->eax) {
@@ -657,11 +833,20 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
         case SYS_DIRENT_INFO:
             sys_dirent_info(s);
             break;
+        case SYS_SYMLINK_INFO:
+            sys_symlink_info(s);
+            break;
         case SYS_CREATE:
             sys_create(s);
             break;
         case SYS_DELETE:
             sys_delete(s);
+            break;
+        case SYS_LINK:
+            sys_link(s);
+            break;
+        case SYS_HARDEN:
+            sys_harden(s);
             break;
         default:
             kprintf("Invalid syscall code: %d\n", s->eax);

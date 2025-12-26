@@ -9,6 +9,7 @@ enum filetype {
     FT_UNALLOCATED,
     FT_FILE,
     FT_DIRECTORY,
+    FT_SYMLINK,
 };
 #define NDIRECT 21
 #define FILE_MAX_SIZE (NDIRECT * BLOCK_SIZE)
@@ -26,9 +27,13 @@ struct directory_inode_data {
     uint32_t indirect_block;
     */
 };
+struct symlink_inode_data {
+    u32 target;
+};
 union inode_data {
     struct file_inode_data file_data;
     struct directory_inode_data directory_data;
+    struct symlink_inode_data symlink_data;
 };
 struct inode {
     char name[FILENAME_MAX_LEN];

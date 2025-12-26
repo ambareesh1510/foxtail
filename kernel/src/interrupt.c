@@ -263,8 +263,12 @@ void keyboard_interrupt_handler(
     kb_char = scancode;
     if (kbd_US[scancode] != 0) {
         char c = kbd_US[scancode];
+        bool valid = ('0' <= c && c <= '9') || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || (c == '\n') || (c == ' ') || (c == '\b' && input_staging_buffer_write_ptr > 0);
+        if (!valid) {
+            goto keyboard_handler_end;
+        }
         __asm__ volatile ("pushal");
-        kprint_char(c);
+            kprint_char(c);
         __asm__ volatile ("popal");
         input_staging_buffer[input_staging_buffer_write_ptr] = c;
         __asm__ volatile ("pushal");
@@ -278,8 +282,11 @@ void keyboard_interrupt_handler(
             }
             input_staging_buffer_write_ptr = 0;
             input_buffer_nonempty = true;
+        } else if (c == '\b') {
+            input_staging_buffer_write_ptr -= 2;
         }
     }
+keyboard_handler_end:
     pic_send_eoi(1);
 }
 
