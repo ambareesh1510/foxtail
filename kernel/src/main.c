@@ -92,6 +92,12 @@ kernel_main(void) {
 
 }
 
+void idle() {
+    __asm__ volatile ("int $0x20\n");
+    for (;;) {
+        __asm__ volatile ("hlt\n");
+    }
+}
 
 char a_kernel_stack[2 * PGSIZE];
 void
@@ -116,17 +122,23 @@ higher_half_entry() {
 
     kprintf("Total free pages: %d\n", *(u32 *) ((char *) &free_pages + HIGHER_HALF_BASE));
 
-    struct inode *idle_inode = get_inode_by_path(get_root_inode(), "idle");
-    if (idle_inode == 0) {
-        panic("Idle program not found");
+    struct proc *idle_proc = alloc_proc();
+    if (idle_proc == 0) {
+        panic("Couldn't allocate idle proc\n");
     }
-    exec_helper(idle_inode, 0, 0, 0, 0);
+    strcpy(idle_proc->name, "idle");
+    idle_proc->cr3 = (u32) kernel_pgdir;
+    idle_proc->status = RUNNABLE;
+    idle_proc->kernel_sp = (u32) a_kernel_stack + 2 * PGSIZE;
 
     struct inode *sh_inode = get_inode_by_path(get_root_inode(), "sh");
     if (sh_inode == 0) {
         panic("Init program not found");
     }
-    exec(sh_inode);
+    exec_helper(sh_inode, 0, 0, 0, 0);
+
+
+    idle();
 
     for (;;) {
         __asm__ volatile ("hlt");

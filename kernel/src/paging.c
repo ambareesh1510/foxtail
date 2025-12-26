@@ -9,6 +9,7 @@ __attribute__ ((section(".boot.data")))
 u32 kernel_id_pgtbl[1024] = {0};
 
 u32 *kernel_pgtbl = (u32 *) ((char *) kernel_id_pgtbl + HIGHER_HALF_BASE);
+u32 *kernel_hh_pgdir = (u32 *) ((char *) kernel_pgdir + HIGHER_HALF_BASE);
 u32 *temp_page_ptr = (u32 *) (HIGHER_HALF_BASE + PGSIZE * (PGDIR_LEN - 1));
 
 // Address that the kernel is mapped to in physical memory.

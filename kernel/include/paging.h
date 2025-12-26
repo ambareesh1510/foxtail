@@ -19,6 +19,7 @@ __attribute__ ((section(".boot.data")))
 u32 kernel_id_pgtbl[1024];
 
 extern u32 *kernel_pgtbl;
+extern u32 *kernel_hh_pgdir;
 extern u32 *temp_page_ptr;
 
 // void paging_setup();

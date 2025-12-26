@@ -1,5 +1,6 @@
 fs page table
 users and permissions
 kernel logging
-exit codes
 (?) verify user-space pointers in syscalls
+more informative syscall return values
+schedule idle proc only when no other procs exist

@@ -9,5 +9,5 @@ void _start(int argc, char **argv) {
             printf("Failed to harden path %s\n", argv[i]);
         }
     }
-    exit(1);
+    exit(0);
 }
