@@ -11,30 +11,30 @@ void _start(int argc, char **argv) {
         dir = argv[1];
     } else {
         puts("Too many arguments\n");
-        exit();
+        exit(1);
     }
     int cd_res = cd(dir);
     if (cd_res < 0) {
         puts("Couldn't find directory\n");
-        exit();
+        exit(1);
     }
     int cwd_fd = open(".", 0);
     if (cwd_fd < 0) {
         puts("open failed\n");
-        exit();
+        exit(1);
     }
 
     int ft = ftype(cwd_fd);
     if (ft != SYS_FTYPE_DIR) {
         puts("not a dir\n");
-        exit();
+        exit(1);
     }
 
     struct dir_info my_dir_info;
     int dir_info_res = dir_info(cwd_fd, &my_dir_info);
     if (dir_info_res < 0) {
         puts("failed getting dir_info\n");
-        exit();
+        exit(1);
     }
 
     struct dirent_info my_dirent_info = {0};
@@ -73,5 +73,5 @@ void _start(int argc, char **argv) {
         }
         close(dirent_fd);
     }
-    exit();
+    exit(0);
 }

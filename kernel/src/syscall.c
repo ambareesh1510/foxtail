@@ -203,7 +203,9 @@ void sys_exit(
     // TODO: this might not work: sys_exit has a stack frame on the kernel stack, but that kernel stack gets cleaned up in cleanup_proc(). 
     // Instead, we should store kernel stack addr in the proc struct and free it (in scheduler()) once the process is killed.
     // TODO: in scheduler, we need to deal with killed processes that aren't being waited upon.
-    cleanup_proc(get_current_proc());
+    struct proc *curr_proc = get_current_proc();
+    cleanup_proc(curr_proc);
+    curr_proc->exit_code = s->ebx;
     // kprintf("Kill %d\n", get_current_proc()->pid);
     __asm__ volatile ("int $0x20");
 }
@@ -211,7 +213,7 @@ void sys_exit(
 // If pid doesn't exist, fail
 // If pid isn't child of current process, fail
 // Otherwise, set state to waiting, set waiting_proc to pid
-// Return eax = 0 on success, eax = -1 on failure.
+// Return eax = exit code on success, eax = -1 on failure.
 void sys_wait(struct syscall_registers *s) {
     struct proc *curr_proc = get_current_proc();
     u32 pid = s->ebx;
@@ -229,7 +231,7 @@ void sys_wait(struct syscall_registers *s) {
         curr_proc->status = WAITING_ON_PID;
         curr_proc->waiting_on = i;
         __asm__ volatile ("int $0x20");
-        s->eax = 0;
+        s->eax = curr_proc->exit_code;
     } else {
         s->eax = -1;
     }

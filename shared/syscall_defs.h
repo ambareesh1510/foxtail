@@ -104,11 +104,11 @@ static inline int getpid(void) {
 // Exit current process.
 // Does not return.
 __attribute__((noreturn))
-static inline void exit(void) {
+static inline void exit(int exit_code) {
     __asm__ volatile(
         "int $0x80"
         : 
-        : "a"(SYS_EXIT)
+        : "a"(SYS_EXIT), "b"(exit_code)
     );
     // Should never reach here
     while(1);

@@ -6,18 +6,18 @@ void _start() {
     int c_res = create(".", "newfile", SYS_CREATE_FILE);
     if (c_res < 0) {
         puts("failed create file\n");
-        exit();
+        exit(1);
     }
     c_res = create(".", "newdir", SYS_CREATE_DIR);
     if (c_res < 0) {
         puts("failed create dir\n");
-        exit();
+        exit(1);
     }
     int fd = open("newfile", SYS_OPEN_FILE_MODE_READ);
     int d_res = delete("newfile");
     if (d_res < 0) {
         puts("Failed delete newfile\n");
-        exit();
+        exit(1);
     }
     puts("Before close newfile\n");
     close(fd);
@@ -25,13 +25,13 @@ void _start() {
     int res = open("hi/grub.cfg", SYS_OPEN_FILE_MODE_READ | SYS_OPEN_FILE_MODE_WRITE);
     if (res < 0) {
         printf("Failed to open\n");
-        exit();
+        exit(1);
     }
     char buf[1000];
     int read_res_1 = read(res, buf, 999);
     if (read_res_1 < 0) {
         printf("Read 1 failed\n");
-        exit();
+        exit(1);
     }
     buf[read_res_1] = '\0';
     printf("Read 1: %s\n", buf);
@@ -41,7 +41,7 @@ void _start() {
     int write_res = write(0, test, sizeof(test) - 1);
     if (write_res < 0) {
         printf("Write failed\n");
-        exit();
+        exit(1);
     }
 
     // printf("wrote %d bytes\n", write_res);
@@ -53,5 +53,5 @@ void _start() {
     // }
     // buf[read_res_2] = '\0';
     // printf("Read 2: %s\n", buf);
-    exit();
+    exit(0);
 }

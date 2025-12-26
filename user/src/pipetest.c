@@ -24,5 +24,5 @@ void _start() {
     buf[read_res] = 0;
     puts(buf);
 
-    exit();
+    exit(0);
 }

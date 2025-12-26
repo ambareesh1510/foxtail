@@ -48,4 +48,5 @@ void cleanup_proc(struct proc *proc) {
     // Set proc status to killed.
     proc->status = KILLED;
     proc->present = false;
+    proc->exit_code = FAULT_EXIT_CODE;
 }

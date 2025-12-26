@@ -9,5 +9,5 @@ void _start() {
     while (1) {
         puts("HAHAHA!\n");
     }
-    exit();
+    exit(0);
 }

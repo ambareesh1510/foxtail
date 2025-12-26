@@ -12,5 +12,5 @@ void _start() {
     }
     puts(buf);
     puts("\n");
-    exit();
+    exit(0);
 }

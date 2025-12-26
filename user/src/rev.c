@@ -49,6 +49,6 @@ void _start() {
         write(0, "\n", 1);
     }
 
-    exit();
+    exit(0);
 }
 

@@ -57,8 +57,13 @@ int parse_args(char *buf, char *argv[]) {
 void _start() {
     char buf[100];
     int bytes;
+    int exit_code = 0;
     for (;;) {
-        puts("$ ");
+        if (exit_code == 0) {
+            puts("$> ");
+        } else {
+            puts("!> ");
+        }
         bytes = read(1, buf, 99);
         if (bytes <= 0) {
             break;
@@ -84,7 +89,7 @@ void _start() {
                 puts("Unable to change directories\n");
             }
         } else if (strcmp(buf, "exit") == 0) {
-            exit();
+            exit(0);
         } else if (contains_pipe(buf)) {
             // split into left and right commands
             char *pipe_pos = strchr(buf, '|');
@@ -141,6 +146,7 @@ void _start() {
                 &right_cmd
             );
 
+            // TODO: we can't just continue here (resource leakage); fix this
             if (right_pid < 0) {
                 puts("spawn right failed\n");
                 continue;
@@ -150,8 +156,8 @@ void _start() {
             close(p.read_fd);
             close(p.write_fd);
 
-            wait(left_pid);
-            wait(right_pid);
+            exit_code = wait(left_pid);
+            exit_code = wait(right_pid);
         } else {
             char *argv[MAX_ARGS + 1];
             int argc = parse_args(buf, argv);
@@ -165,9 +171,9 @@ void _start() {
                 puts(argv[0]);
                 puts(".\n");
             } else {
-                wait(res);
+                exit_code = wait(res);
             }
         }
     }
-    exit();
+    exit(0);
 }

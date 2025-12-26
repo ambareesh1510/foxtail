@@ -55,6 +55,7 @@ void scheduler() {
             if (ptable[ptable[i].waiting_on].status == KILLED) {
                 // kprintf("pid %d killed, wake up %d\n", ptable[i].waiting_on, i);
                 ptable[i].status = RUNNABLE;
+                ptable[i].exit_code = ptable[ptable[i].waiting_on].exit_code;
                 scheduler_proc_index = i;
                 return;
             }

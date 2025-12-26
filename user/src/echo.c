@@ -8,5 +8,5 @@ void _start(int argc, char **argv) {
         puts(argv[i]);
     }
     puts("\n");
-    exit();
+    exit(0);
 }

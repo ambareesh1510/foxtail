@@ -4,7 +4,7 @@
 void _start(int argc, char **argv) {
     if (argc != 3) {
         printf("Wrong number of arguments (got %d, expected 3)\n", argc);
-        exit();
+        exit(1);
     }
     char *target = argv[1];
     char *linkpath = argv[2];
@@ -24,5 +24,5 @@ void _start(int argc, char **argv) {
     if (res < 0) {
         puts("Link failed\n");
     }
-    exit();
+    exit(0);
 }

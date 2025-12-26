@@ -62,6 +62,9 @@ struct proc {
     u32 kernel_sp;
     u32 kernel_bp;
     u32 brk;
+    // Holds the exit code of the last "wait"ed process when this process is still alive;
+    // holds its own exit code once it exits.
+    u32 exit_code;
     struct inode *cwd;
     struct fd fds[MAX_FDS];
 };
