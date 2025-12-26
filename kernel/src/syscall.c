@@ -770,7 +770,7 @@ void sys_harden(struct syscall_registers *s) {
     // Copy all data from file to symlink except for names.
     // Update symlink in old file.
     char temp_name[FILENAME_MAX_LEN];
-    memcpy(temp_name, symlink->name, sizeof(struct inode));
+    memcpy(temp_name, symlink->name, FILENAME_MAX_LEN);
     memcpy((char *) symlink, (char *) symlink_target, sizeof(struct inode));
     memcpy(symlink->name, temp_name, FILENAME_MAX_LEN);
     symlink_target->type = FT_SYMLINK;

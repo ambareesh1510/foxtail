@@ -303,4 +303,15 @@ static inline int link(const char *target, const char *link_dir, const char *lin
     return ret; 
 }
 
+static inline int harden(const char *symlink) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_HARDEN), "b"(symlink)
+        : "memory"
+    );
+    return ret; 
+}
+
 #endif /* SYSCALL_DEFS_H */
