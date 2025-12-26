@@ -62,14 +62,28 @@ static inline int read(int fd, char *buf, unsigned int count) {
     return ret;
 }
 
+enum spawn_custom_command_type {
+    SPAWN_CUSTOM_COMMAND_REMAP_FDS,
+};
+
+struct spawn_custom_command {
+    enum spawn_custom_command_type type;
+    union {
+        struct {
+            unsigned int curr_fd;
+            unsigned int new_fd;
+        } remap_fds;
+    } data;
+};
+
 // Spawn a new process from the given `path`.
 // Returns: PID of new process on success, -1 on error
-static inline int spawn_proc(const char *path, unsigned int argc, char **argv) {
+static inline int spawn_proc(const char *path, unsigned int argc, char **argv, unsigned int num_custom_commands, struct spawn_custom_command *commands) {
     int ret;
     __asm__ volatile(
         "int $0x80"
         : "=a"(ret)
-        : "a"(SYS_SPAWN_PROC), "b"(path), "c"(argc), "d"(argv)
+        : "a"(SYS_SPAWN_PROC), "b"(path), "c"(argc), "d"(argv), "S"(num_custom_commands), "D"(commands)
         : "memory"
     );
     return ret;

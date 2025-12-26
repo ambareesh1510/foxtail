@@ -1,6 +1,3 @@
-"move file" syscall
-pipes
-alternative to fork/exec api (for pipes)
 fs page table
 exception handlers
 users and permissions

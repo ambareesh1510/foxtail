@@ -55,4 +55,42 @@ int puts(char *str) {
     return write(0, str, strlen(str));
 }
 
+char *strchr(const char *s, int c) {
+    while (*s) {
+        if (*s == (char)c)
+            return (char *)s;
+        s++;
+    }
+
+    if (c == '\0')
+        return (char *)s;
+
+    return 0;
+}
+
+char *trim(char *s) {
+    char *start = s;
+    char *end;
+
+    // skip leading spaces
+    while (*start == ' ')
+        start++;
+
+    // string became empty
+    if (*start == '\0')
+        return start;
+
+    // find end
+    end = start;
+    while (*end != '\0')
+        end++;
+    end--;  // now at last char
+
+    // trim trailing spaces
+    while (end > start && *end == ' ')
+        *end-- = '\0';
+
+    return start;
+}
+
 #endif /* STRING_H */

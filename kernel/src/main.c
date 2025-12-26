@@ -120,7 +120,7 @@ higher_half_entry() {
     if (idle_inode == 0) {
         panic("Idle program not found");
     }
-    exec_helper(idle_inode, 0, 0);
+    exec_helper(idle_inode, 0, 0, 0, 0);
 
     struct inode *sh_inode = get_inode_by_path(get_root_inode(), "sh");
     if (sh_inode == 0) {

@@ -52,12 +52,12 @@ void sys_write(struct syscall_registers *s) {
         }
     } else if (status == FD_PIPE) {
         u32 pipe_idx = curr_proc->fds[s->ebx].data.pipe_idx;
-        if (pipe_data[pipe_idx].num_refs < 2) {
-            // Read end is closed.
-            // TODO: proper error code
-            s->eax = -1;
-            return;
-        }
+        // if (pipe_data[pipe_idx].num_refs < 2) {
+        //     // Read end is closed.
+        //     // TODO: proper error code
+        //     s->eax = -1;
+        //     return;
+        // }
         for (u32 i = 0; i < s->edx; i++) {
             if (
                 (pipe_data[pipe_idx].internal_write_ptr + 1) % PIPE_BUF_SIZE == (pipe_data[pipe_idx].read_ptr) % PIPE_BUF_SIZE
@@ -130,13 +130,13 @@ void sys_read(struct syscall_registers *s) {
         return;
     } else if (status == FD_PIPE) {
         u32 pipe_idx = curr_proc->fds[s->ebx].data.pipe_idx;
-        if (pipe_data[pipe_idx].num_refs < 2) {
-            // Write end is closed.
-            // TODO: proper error code
-            s->eax = -1;
-            return;
-        }
         if (pipe_data[pipe_idx].read_ptr == pipe_data[pipe_idx].write_ptr) {
+            if (pipe_data[pipe_idx].num_refs < 2) {
+                // Write end is closed.
+                // TODO: proper error code
+                s->eax = -1;
+                return;
+            }
             curr_proc->status = WAITING_ON_PIPE;
             curr_proc->waiting_on = pipe_idx;
             __asm__ volatile ("int $0x20" : : : "memory");
@@ -147,11 +147,9 @@ void sys_read(struct syscall_registers *s) {
             if (pipe_data[pipe_idx].read_ptr == pipe_data[pipe_idx].write_ptr) {
                 break;
             }
-            if (pipe_data[pipe_idx].read_ptr > pipe_data[pipe_idx].write_ptr)
-                panic("");
             buf[count] = pipe_buffers[pipe_idx][pipe_data[pipe_idx].read_ptr];
-            // pipe_data[pipe_idx].read_ptr = (pipe_data[pipe_idx].read_ptr + 1) % PIPE_BUF_SIZE;
-            pipe_data[pipe_idx].read_ptr = (pipe_data[pipe_idx].read_ptr + 1);
+            pipe_data[pipe_idx].read_ptr = (pipe_data[pipe_idx].read_ptr + 1) % PIPE_BUF_SIZE;
+            // pipe_data[pipe_idx].read_ptr = (pipe_data[pipe_idx].read_ptr + 1);
         }
         s->eax = count;
         return;
@@ -182,7 +180,7 @@ void sys_spawn_proc(struct syscall_registers *s) {
         s->eax = -1;
         return;
     }
-    struct proc *new_proc = exec_helper(prog, s->ecx, (char **) s->edx);
+    struct proc *new_proc = exec_helper(prog, s->ecx, (char **) s->edx, s->esi, (struct spawn_custom_command *) s->edi);
     if (new_proc == 0) {
         s->eax = -1;
     } else {

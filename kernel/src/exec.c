@@ -18,11 +18,16 @@ struct inode *prog;
 u32 global_argc;
 char **global_argv;
 char global_arg_buf[PGSIZE];
+u32 global_num_custom_commands;
+struct spawn_custom_command *global_commands;
 
-struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv) {
+struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_custom_commands, struct spawn_custom_command *commands) {
     prog = prog_ptr;
+    // kprintf("init: got %x commands\n", &num_custom_commands);
     global_argc = argc;
     global_argv = argv;
+    global_num_custom_commands = num_custom_commands;
+    global_commands = commands;
     fs_read_bytes(prog, 0, sizeof(elf_header), (char *) (&elf_header));
 
     if (elf_header.magic != ELF_MAGIC) {
@@ -163,6 +168,7 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv) {
     );
 
     __asm__ volatile (
+        // "pushal\n"
         "mov %0, %%eax\n"
         "mov %%eax, %%cr3\n"
         "mov %%cr0, %%eax\n"
@@ -224,9 +230,20 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv) {
         "popl %%eax\n"
         "orl $0x200, %%eax\n"        // Enable interrupts by setting appropriate flag
         "mov %%eax, %0\n"
+        // "popal\n"
         : "=m"(new_proc->registers.eflags)
-        : : "eax"
+        : :
+        "eax",
+        // TODO: why do I need to mark ebx clobbered?
+        "ebx"
+     // "%eax", "%ebx", "%ecx", "%edx", "%ebx", "%esp", "%ebp", "%esi", "%edi"  // Mark affected registers as clobbered
     );
+//     asm volatile (
+//     "popal\n"  // Pops all registers (AX, BX, CX, DX, SP, BP, SI, DI)
+//     : // No outputs
+//     : // No inputs
+// );
+
     
 
     // Copy new process's details into the proc struct
@@ -260,12 +277,29 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv) {
     for (u32 i = 3; i < MAX_FDS; i++) {
         new_proc->fds[i].status = FD_UNMAPPED;
     }
-    new_proc->present = true;
+
+    // TODO: I am very confused why we need to use a global variable here; if we don't, it's stored in a register that gets clobbered by compiler-generated instructions.
+    for (u32 i = 0; i < global_num_custom_commands; i++) {
+        struct spawn_custom_command command = global_commands[i];
+        switch (command.type) {
+            case SPAWN_CUSTOM_COMMAND_REMAP_FDS:
+                new_proc->fds[command.data.remap_fds.new_fd] = get_current_proc()->fds[command.data.remap_fds.curr_fd];
+                struct fd new_fd = new_proc->fds[command.data.remap_fds.new_fd];
+                enum fd_status status = new_fd.status;
+                if (status == FD_REGULAR_FILE || status == FD_REGULAR_DIRECTORY) {
+                    acquire_inode(new_fd.data.file);
+                } else if (status == FD_PIPE) {
+                    pipe_data[new_fd.data.pipe_idx].num_refs++;
+                }
+                break;
+        }
+    }
 
     // kprintf("new proc name=%s pid=%d: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
     //         new_proc->name,
     //         new_proc->pid,
     //         new_proc->registers.eip, new_proc->registers.cs, new_proc->registers.eflags, new_proc->registers.esp, new_proc->registers.ss);
+    new_proc->present = true;
     return new_proc;
 }
 
@@ -281,7 +315,7 @@ enum exec_status exec(struct inode *prog) {
         return EXEC_ERROR_INVALID_MAGIC;
     }
 
-    struct proc *new_proc = exec_helper(prog, 0, 0);
+    struct proc *new_proc = exec_helper(prog, 0, 0, 0, 0);
     if (new_proc == 0) {
         panic("Exec helper failed\n");
     }
