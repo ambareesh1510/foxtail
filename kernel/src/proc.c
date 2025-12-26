@@ -36,6 +36,10 @@ bool release_proc(struct proc *proc) {
     }
 }
 
+bool proc_alive(enum proc_status status) {
+    return (status == EMBRYO) || (status == RUNNABLE) || (status == WAITING_ON_PID) || (status == WAITING_ON_PIPE) || (status == WAITING_ON_STDIN);
+}
+
 volatile u32 scheduler_proc_index;
 // TODO: figure out how to schedule idle process only when there are no other runnable processes
 void scheduler() {
@@ -67,6 +71,11 @@ void scheduler() {
                 scheduler_proc_index = i;
                 return;
             }
+        } else if (status == KILLED) {
+            enum proc_status parent_status = ptable[ptable[i].parent_idx].status;
+            if (!proc_alive(parent_status)) {
+                ptable[i].status = UNUSED;
+            }
         }
     }
     panic("UNREACHABLE: scheduler exited without choosing process\n");
@@ -74,4 +83,8 @@ void scheduler() {
 
 struct proc *get_current_proc() {
     return ptable + scheduler_proc_index;
+}
+
+u32 get_proc_idx(struct proc *proc) {
+    return ((u32) proc - (u32) ptable) / sizeof(struct proc);
 }

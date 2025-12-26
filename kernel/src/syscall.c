@@ -185,7 +185,8 @@ void sys_spawn_proc(struct syscall_registers *s) {
         s->eax = -1;
     } else {
         struct proc *curr_proc = get_current_proc();
-        new_proc->parent = curr_proc->pid;
+        new_proc->parent_pid = curr_proc->pid;
+        new_proc->parent_idx = get_proc_idx(curr_proc);
         new_proc->cwd = curr_proc->cwd;
         // kprintf("Spawn %d\n", new_proc->pid);
         s->eax = new_proc->pid;
@@ -218,7 +219,7 @@ void sys_wait(struct syscall_registers *s) {
     u32 i;
     for (i = 0; i < MAX_PROCS; i++) {
         if (ptable[i].pid == pid) {
-            if (ptable[i].parent == get_current_proc()->pid) {
+            if (ptable[i].parent_pid == get_current_proc()->pid) {
                 found = true;
             }
             break;

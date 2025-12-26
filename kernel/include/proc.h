@@ -56,7 +56,8 @@ struct proc {
     // Physical address of the kernel stack. Unused for now
     u32 kernel_stack;
     enum proc_status status;
-    u32 parent;
+    u32 parent_pid;
+    u32 parent_idx;
     u32 waiting_on;
     u32 kernel_sp;
     u32 kernel_bp;
@@ -74,5 +75,6 @@ struct proc *alloc_proc();
 
 void scheduler();
 struct proc *get_current_proc();
+u32 get_proc_idx(struct proc *proc);
 
 #endif /* PROC_H */

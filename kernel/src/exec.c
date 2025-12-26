@@ -320,7 +320,7 @@ enum exec_status exec(struct inode *prog) {
         panic("Exec helper failed\n");
     }
     new_proc->status = RUNNABLE;
-    new_proc->parent = 0xFFFFFFFF;
+    new_proc->parent_pid = 0xFFFFFFFF;
     scheduler_proc_index = ((u32) new_proc - (u32) ptable) / sizeof(struct proc);
 
     // Ring 3 transition
