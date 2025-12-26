@@ -196,7 +196,9 @@ void sys_getpid(struct syscall_registers *s) {
     s->eax = get_current_proc()->pid;
 }
 
-void sys_exit(struct syscall_registers *s) {
+void sys_exit(
+    __attribute__ ((unused)) struct syscall_registers *s
+) {
     // TODO: this might not work: sys_exit has a stack frame on the kernel stack, but that kernel stack gets cleaned up in cleanup_proc(). 
     // Instead, we should store kernel stack addr in the proc struct and free it (in scheduler()) once the process is killed.
     // TODO: in scheduler, we need to deal with killed processes that aren't being waited upon.
@@ -367,7 +369,6 @@ void sys_open(struct syscall_registers *s) {
     struct proc *curr_proc = get_current_proc();
     struct inode *target = get_inode_by_path(curr_proc->cwd, path);
     if (target == 0) {
-    kprintf("failed dirent\n");
         s->eax = -1;
         return;
     }

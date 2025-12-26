@@ -101,7 +101,6 @@ struct inode *get_inode_by_path(
     }
     // TODO: follow symlinks only if we're going deeper
     // does this approach work?
-    u32 depth = 0;
     base = follow_symlink(base);
     if (base->type == FT_FILE) {
         return 0;

@@ -1,5 +1,5 @@
 fs page table
 users and permissions
 kernel logging
-verify user-space pointers in syscalls
 exit codes
+(?) verify user-space pointers in syscalls

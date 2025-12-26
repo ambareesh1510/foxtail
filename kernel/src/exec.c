@@ -183,7 +183,7 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
     // Copy each segment into memory
     for (u32 i = 0; i < elf_header.phnum; i++) {
         struct program_header program_header;
-        u32 ph_bytes = fs_read_bytes(
+        fs_read_bytes(
             prog,
             elf_header.phoff + i * sizeof(struct program_header),
             sizeof(program_header),

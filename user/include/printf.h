@@ -8,7 +8,6 @@
 
 // Helper: Convert integer to string (decimal)
 static int itoa(int num, char *buf) {
-    int i = 0;
     int is_negative = 0;
     
     if (num == 0) {

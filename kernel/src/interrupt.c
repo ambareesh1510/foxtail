@@ -362,10 +362,17 @@ bool input_buffer_nonempty = false;
 
 u32 shift_count = 0;
 
-__attribute__ ((interrupt))
-void keyboard_interrupt_handler(
-    __attribute__ ((unused)) struct interrupt_frame *frame
-) {
+__attribute__ ((naked))
+void keyboard_interrupt_handler() {
+    __asm__ volatile (
+        "pushal\n"
+        "call keyboard_interrupt_handler_inner\n"
+        "popal\n"
+        "iret\n"
+    );
+}
+
+void keyboard_interrupt_handler_inner() {
     u8 scancode = inb(0x60);
     kb_char = scancode;
     if (scancode == 0x2A || scancode == 0x36) {
