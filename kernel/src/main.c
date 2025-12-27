@@ -122,14 +122,6 @@ higher_half_entry() {
 
     // kprintf("Total free pages: %d\n", *(u32 *) ((char *) &free_pages + HIGHER_HALF_BASE));
 
-
-
-
-
-
-
-
-
     kprint(
         "////////                      //               ///   /////         |    \n"
         "////////                     ///                       ///       \\ | /  \n"
@@ -157,7 +149,6 @@ higher_half_entry() {
         panic("Init program not found");
     }
     exec_helper(sh_inode, 0, 0, 0, 0);
-
 
     idle();
 

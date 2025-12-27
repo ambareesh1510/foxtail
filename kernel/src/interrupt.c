@@ -63,7 +63,7 @@ void pic_send_eoi(u8 irq) {
     outb(0x20, 0x20);
 }
 
-struct gp_fault_frame {
+struct fault_frame_with_error_code {
     u32 error_code;
     u32 ip;
     u32 cs;
@@ -80,7 +80,7 @@ void gp_fault_handler() {
     );
 }
 
-void gp_fault_handler_inner(struct gp_fault_frame *f) {
+void gp_fault_handler_inner(struct fault_frame_with_error_code *f) {
     if ((f->cs & 0x3) == 3) {
         struct proc *curr = get_current_proc();
         cleanup_proc(curr);
@@ -101,20 +101,21 @@ void gp_fault_handler_inner(struct gp_fault_frame *f) {
 __attribute__ ((naked))
 void page_fault_handler() {
     __asm__ volatile (
+        "push %esp\n"
         "call page_fault_handler_inner\n"
-        "add $0x4, %esp\n"
+        "add $0x8, %esp\n"
         "iret\n"
     );
 }
 
-void page_fault_handler_inner(u32 error_code) {
+void page_fault_handler_inner(struct fault_frame_with_error_code *f) {
     u32 fault_addr;
     __asm__ volatile (
         "mov %%cr2, %0\n"
         : "=r"(fault_addr)
         : : "memory"
     );
-    if ((error_code & 0x4) || (fault_addr < HIGHER_HALF_BASE)) {
+    if ((f->error_code & 0x4) || (fault_addr < HIGHER_HALF_BASE)) {
         struct proc *curr = get_current_proc();
         cleanup_proc(curr);
         kprintf("Killed process `%s` (PID %d): Page Fault\n", curr->name, curr->pid);
@@ -124,10 +125,10 @@ void page_fault_handler_inner(u32 error_code) {
             "Page fault in kernel mode! (address 0x%x)\n"
             "Error code: %x (P=%d W=%d U=%d)\n",
             fault_addr,
-            error_code,
-            error_code & 1,
-            (error_code >> 1) & 1,
-            (error_code >> 2) & 1
+            f->error_code,
+            f->error_code & 1,
+            (f->error_code >> 1) & 1,
+            (f->error_code >> 2) & 1
         );
     }
     return;
@@ -147,16 +148,21 @@ void set_curr_proc_runnable() {
     curr_proc->status = RUNNABLE;
 }
 
+u32 get_curr_pid() {
+    return get_current_proc()->pid;
+}
+
 // char *a = "TEST_TIMER_HANDLER esp = %d\n";
 char *a = "TEST_TIMER_HANDLER %x\n";
 __attribute__ ((naked))
 void timer_interrupt_handler() {
     __asm__ volatile (
-        // "push %%esp; push %0\n; call kprintf; add $0x8, %%esp\n"
-        // "iret\n"
-        // "cli\n"
         "pushal\n"
-        // "push %%esp\n"
+        "mov $0x10, %%ax\n"
+        "mov %%ax, %%ds\n"
+        "mov %%ax, %%es\n"
+        "mov %%ax, %%fs\n"
+        "mov %%ax, %%gs\n"
         "cld\n"
         "call timer_interrupt_handler_inner\n"
         // If it's an embryo, set the esp to
@@ -166,9 +172,16 @@ void timer_interrupt_handler() {
         "mov %2, %%esp\n"
         "call set_curr_proc_runnable\n"
         "not_embryo:\n"
-        // "add $0x4, %%esp\n"
+        "call get_curr_pid\n"
+        "test %%eax, %%eax\n"
+        "je timer_idle_proc\n"
+        "mov $0x23, %%ax\n"
+        "mov %%ax, %%ds\n"
+        "mov %%ax, %%es\n"
+        "mov %%ax, %%fs\n"
+        "mov %%ax, %%gs\n"
+        "timer_idle_proc:\n"
         "popal\n"
-        // "sti\n"
         "iret\n"
         : :
           "m"(a),
@@ -188,7 +201,7 @@ char ctx_switch_temp_stack[2 * PGSIZE];
 u32 timer_interrupt_handler_inner(
     // struct regs_and_interrupt_frame *f
 ) {
-    pic_send_eoi(0);
+    // pic_send_eoi(0);
     __asm__ volatile("mov 4(%%ebp), %0" : "=r"(global_ra));
     if (!proc_exists) {
         goto timer_handler_default;
@@ -268,7 +281,7 @@ timer_handler_default:
     //     f->frame.ip, f->frame.cs, f->frame.flags,
     //     f->frame.sp, f->frame.ss);
     ticks++;
-    // pic_send_eoi(0);
+    pic_send_eoi(0);
     if (!proc_exists) {
         return 0;
     } else {
@@ -366,9 +379,24 @@ __attribute__ ((naked))
 void keyboard_interrupt_handler() {
     __asm__ volatile (
         "pushal\n"
+        "mov $0x10, %%ax\n"
+        "mov %%ax, %%ds\n"
+        "mov %%ax, %%es\n"
+        "mov %%ax, %%fs\n"
+        "mov %%ax, %%gs\n"
         "call keyboard_interrupt_handler_inner\n"
+        "call get_curr_pid\n"
+        "test %%eax, %%eax\n"
+        "je kb_idle_proc\n"
+        "mov $0x23, %%ax\n"
+        "mov %%ax, %%ds\n"
+        "mov %%ax, %%es\n"
+        "mov %%ax, %%fs\n"
+        "mov %%ax, %%gs\n"
+        "kb_idle_proc:\n"
         "popal\n"
         "iret\n"
+        :::
     );
 }
 
@@ -433,12 +461,29 @@ void syscall_interrupt_handler(void) {
       "pushal\n"
       // Push the address of the syscall_registers struct that we just
       // constructed on the stack
-      "push %esp\n"
+      "push %%esp\n"
+      "mov $0x10, %%ax\n"
+      "mov %%ax, %%ds\n"
+      "mov %%ax, %%es\n"
+      "mov %%ax, %%fs\n"
+      "mov %%ax, %%gs\n"
       "call syscall_interrupt_handler_inner\n"
-      "add $4, %esp\n"
+      "add $4, %%esp\n"
+      "call get_curr_pid\n"
+      // TODO: don't need this test since idle should never make a syscall
+      "test %%eax, %%eax\n"
+      "je syscall_idle_proc\n"
+      "mov $0x23, %%ax\n"
+      "mov %%ax, %%ds\n"
+      "mov %%ax, %%es\n"
+      "mov %%ax, %%fs\n"
+      "mov %%ax, %%gs\n"
+      "syscall_idle_proc:\n"
       "popal\n"
       "sti\n"
-      "iret");
+      "iret"
+      :::
+    );
 }
 
 // * PIC configuration *
