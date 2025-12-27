@@ -401,13 +401,11 @@ void keyboard_interrupt_handler_inner() {
         if (!valid) {
             goto keyboard_handler_end;
         }
-        __asm__ volatile ("pushal");
-        kprint_char(c);
-        __asm__ volatile ("popal");
+        if (c != '\b') {
+            kprint_char(c);
+        }
         input_staging_buffer[input_staging_buffer_write_ptr] = c;
-        __asm__ volatile ("pushal");
         input_staging_buffer_write_ptr = min(input_staging_buffer_write_ptr + 1, INPUT_BUFFER_LEN - 1);
-        __asm__ volatile ("popal");
         if (c == '\n') {
             // Copy to input buffer
             for (u32 i = 0; i < input_staging_buffer_write_ptr; i++) {
@@ -417,7 +415,11 @@ void keyboard_interrupt_handler_inner() {
             input_staging_buffer_write_ptr = 0;
             input_buffer_nonempty = true;
         } else if (c == '\b') {
-            input_staging_buffer_write_ptr -= 2;
+            input_staging_buffer_write_ptr--;
+            if (input_staging_buffer_write_ptr > 0) {
+                kprint_char(c);
+                input_staging_buffer_write_ptr--;
+            }
         }
     }
 keyboard_handler_end:

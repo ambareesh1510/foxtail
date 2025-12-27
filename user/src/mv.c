@@ -8,6 +8,9 @@ void _start(int argc, char **argv) {
     }
     char *target = argv[1];
     char *linkpath = argv[2];
+    char *orig_path = malloc(strlen(linkpath) + 1);
+    strcpy(orig_path, linkpath);
+    delete(linkpath);
     char *path = linkpath;
     for (char *ptr = linkpath; *ptr != 0; ptr++) {
         if (*ptr == '/') {
@@ -24,5 +27,7 @@ void _start(int argc, char **argv) {
     if (res < 0) {
         puts("Link failed\n");
     }
+    harden(orig_path);
+    delete(target);
     exit(0);
 }

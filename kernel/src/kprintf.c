@@ -13,12 +13,14 @@ void kprint_backspace() {
             return;
         }
         cursor_row--;
+        cursor_column = VGA_WIDTH - 1;
     } else {
         cursor_column--;
     }
     kprint_char(' ');
     if (cursor_column == 0) {
         cursor_row--;
+        cursor_column = VGA_WIDTH - 1;
     } else {
         cursor_column--;
     }
