@@ -64,7 +64,7 @@ iso_dir: $(KERNEL)
 	cp grub.cfg $(ISO_DIR)/boot/grub/grub.cfg
 
 $(ISO): iso_dir
-	grub-mkrescue -o $(ISO) $(ISO_DIR)
+	grub-mkrescue -o $(ISO) $(ISO_DIR) -d /usr/lib/grub/i386-pc
 
 run: $(ISO)
 	qemu-system-i386 -cdrom $(ISO) -m 512M -d int,cpu_reset

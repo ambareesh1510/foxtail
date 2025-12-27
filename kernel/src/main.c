@@ -120,7 +120,28 @@ higher_half_entry() {
     gdt_load();
     idt_load();
 
-    kprintf("Total free pages: %d\n", *(u32 *) ((char *) &free_pages + HIGHER_HALF_BASE));
+    // kprintf("Total free pages: %d\n", *(u32 *) ((char *) &free_pages + HIGHER_HALF_BASE));
+
+
+
+
+
+
+
+
+
+    kprint(
+        "////////                      //               ///   /////         |    \n"
+        "////////                     ///                       ///       \\ | /  \n"
+        "///       //////  ///  /// ////////  //////  //////    ///      \\ \\|/ / \n"
+        "//////// ///   //  // ///    ///    //    //   ///     ///       \\ | /  \n"
+        "//////// //    //   ////     ///      //////   ///     ///      \\ \\|/ / \n"
+        "///      //    //   ////     ///    ////  //   ///     ///       \\ | /  \n"
+        "///      //   ///  /// //    /// // //   ///   ///     ///        \\|/   \n"
+        "///       //////  ///  ///    ////   //////  /////// ///////       |    \n"
+        "\n\n"
+        "Welcome! Try `ls` to get started.\n"
+    );
 
     struct proc *idle_proc = alloc_proc();
     if (idle_proc == 0) {
