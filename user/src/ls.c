@@ -56,11 +56,11 @@ void _start(int argc, char **argv) {
         if (dirent_ft == SYS_FTYPE_FILE) {
             struct file_info my_dirent_file_info;
             file_info(dirent_fd, &my_dirent_file_info);
-            printf("[FILE] %d %s\n", my_dirent_file_info.size, my_dirent_info.name);
+            printf("[File] %d %s\n", my_dirent_file_info.size, my_dirent_info.name);
         } else if (dirent_ft == SYS_FTYPE_DIR) {
             struct dir_info my_dirent_dir_info;
             dir_info(dirent_fd, &my_dirent_dir_info);
-            printf("[DIR ] %d %s/\n", my_dirent_dir_info.num_entries, my_dirent_info.name);
+            printf("[Dir ] %d %s/\n", my_dirent_dir_info.num_entries, my_dirent_info.name);
         } else if (dirent_ft == SYS_FTYPE_SYMLINK) {
             unsigned int len = 100;
             char *buf = malloc(len);
@@ -68,7 +68,7 @@ void _start(int argc, char **argv) {
                 len *= 2;
                 buf = realloc(buf, len);
             }
-            printf("[LINK] %s -> %s\n", my_dirent_info.name, buf);
+            printf("[Link] %s -> %s\n", my_dirent_info.name, buf);
             free(buf);
         }
         close(dirent_fd);

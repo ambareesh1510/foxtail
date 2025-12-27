@@ -384,6 +384,10 @@ void sys_open(struct syscall_registers *s) {
                 curr_proc->fds[i].status = FD_REGULAR_DIRECTORY;
             } else if (target->type == FT_SYMLINK) {
                 struct inode *symlink_target = follow_symlink(target);
+                if (symlink_target == 0) {
+                    s->eax = -1;
+                    return;
+                }
                 if (symlink_target->type == FT_FILE) {
                     curr_proc->fds[i].status = FD_REGULAR_FILE;
                 } else if (symlink_target->type == FT_DIRECTORY) {
@@ -440,19 +444,10 @@ void sys_reopen(struct syscall_registers *s) {
     } else if (target->type == FT_DIRECTORY) {
         curr_proc->fds[s->ebx].status = FD_REGULAR_DIRECTORY;
     } else if (target->type == FT_SYMLINK) {
-        struct inode *symlink_target = get_inode_at_idx(target->data.symlink_data.target);
-        u32 depth = 0;
-        while (symlink_target->type == FT_SYMLINK) {
-            depth++;
-            symlink_target = get_inode_at_idx(symlink_target->data.symlink_data.target);
-            if (symlink_target->type == FT_UNALLOCATED) {
-                s->eax = -1;
-                return;
-            }
-            if (depth > SYMLINK_RECURSION_LIMIT) {
-                s->eax = -1;
-                return;
-            }
+        struct inode *symlink_target = follow_symlink(target);
+        if (symlink_target == 0) {
+            s->eax = -1;
+            return;
         }
         if (symlink_target->type == FT_FILE) {
             curr_proc->fds[s->ebx].status = FD_REGULAR_FILE;
@@ -625,7 +620,7 @@ void sys_symlink_info(struct syscall_registers *s) {
         s->eax = -1;
         return;
     }
-    struct inode *target = follow_symlink(curr_proc->fds[s->ebx].data.file);
+    struct inode *target = get_inode_at_idx(curr_proc->fds[s->ebx].data.file->data.symlink_data.target);
     s->eax = path_helper(target, (char *) s->ecx, s->edx);
     return;
 }
@@ -783,16 +778,16 @@ void sys_link(struct syscall_registers *s) {
             s->eax = -1;
             return;
         }
-    }
-    strcpy(link_inode->name, new_path);
-    link_inode->parent = get_index_from_inode(link_dir);
-    link_inode->valid = 1;
-    link_inode->type = FT_SYMLINK;
-    link_inode->data.symlink_data.target = get_index_from_inode(target);
+        strcpy(link_inode->name, new_path);
+        link_inode->parent = get_index_from_inode(link_dir);
+        link_inode->valid = 1;
+        link_inode->type = FT_SYMLINK;
 
-    u32 curr_num_entries = link_dir->data.directory_data.num_entries;
-    link_dir->data.directory_data.direct_files[curr_num_entries] = get_index_from_inode(link_inode);
-    link_dir->data.directory_data.num_entries++;
+        u32 curr_num_entries = link_dir->data.directory_data.num_entries;
+        link_dir->data.directory_data.direct_files[curr_num_entries] = get_index_from_inode(link_inode);
+        link_dir->data.directory_data.num_entries++;
+    }
+    link_inode->data.symlink_data.target = get_index_from_inode(target);
     s->eax = 0;
     return;
 }
