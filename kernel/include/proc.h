@@ -76,6 +76,7 @@ extern volatile u32 scheduler_proc_index;
 extern bool proc_exists;
 struct proc *alloc_proc();
 
+extern u32 sh_proc_pid;
 void scheduler();
 struct proc *get_current_proc();
 u32 get_proc_idx(struct proc *proc);

@@ -1,4 +1,6 @@
 #include "proc.h"
+#include "exec.h"
+#include "fs.h"
 #include "interrupt.h"
 #include "kprintf.h"
 #include "kstring.h"
@@ -40,6 +42,7 @@ bool proc_alive(enum proc_status status) {
     return (status == EMBRYO) || (status == RUNNABLE) || (status == WAITING_ON_PID) || (status == WAITING_ON_PIPE) || (status == WAITING_ON_STDIN);
 }
 
+u32 sh_proc_pid = 0;
 volatile u32 scheduler_proc_index;
 // TODO: figure out how to schedule idle process only when there are no other runnable processes
 void scheduler() {
@@ -73,6 +76,14 @@ void scheduler() {
                 return;
             }
         } else if (status == KILLED) {
+            if (ptable[i].pid == sh_proc_pid) {
+                struct inode *sh_inode = get_inode_by_path(get_root_inode(), "sh");
+                if (sh_inode == 0) {
+                    panic("Init program not found");
+                }
+                struct proc *new_sh = exec_helper(sh_inode, 0, 0, 0, 0);
+                sh_proc_pid = new_sh->pid;
+            }
             enum proc_status parent_status = ptable[ptable[i].parent_idx].status;
             if (!proc_alive(parent_status)) {
                 ptable[i].status = UNUSED;

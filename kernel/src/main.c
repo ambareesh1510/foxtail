@@ -1,6 +1,7 @@
 #include "exec.h"
 #include "interrupt.h"
 #include "gdt.h"
+#include "io.h"
 #include "proc.h"
 #include "vga.h"
 #include "paging.h"
@@ -118,18 +119,65 @@ higher_half_entry() {
     // We need to set the GDT to be able to use segment selectors in the higher
     // half.
     gdt_load();
+
+    // Keyboard setup
+    // Disable PS/2 devices
+    outb(0x64, 0xAD);
+    while (inb(0x64) & 2);
+    outb(0x64, 0xA7);
+    while (inb(0x64) & 2);
+    // Clear keyboard output buffer
+    while (inb(0x64) & 1) {
+        inb(0x60);
+    }
+    // Read config byte
+    outb(0x64, 0x20);
+    while (!(inb(0x64) & 1));
+    u8 config = inb(0x60);
+    kprintf("Initial PS/2 config byte is %x\n", config);
+    config &= 0b10101110;
+    // Write config byte
+    outb(0x64, 0x60);
+    while (inb(0x64) & 2);
+    outb(0x60, config);
+    while (inb(0x64) & 2);
+    // Self-test
+    outb(0x64, 0xAA);
+    while (!(inb(0x64) & 1));
+    u8 self_test_res = inb(0x60);
+    if (self_test_res != 0x55) {
+        panic("PS/2 controler initialization failed: self-test failed (got 0x%x, expected 0x55)\n", self_test_res);
+    }
+    // Restore config
+    outb(0x64, 0x60);
+    while (inb(0x64) & 2);
+    outb(0x60, config);
+    while (inb(0x64) & 2);
+    // Enable devices
+    outb(0x64, 0xAE);
+    while (inb(0x64) & 2);
+    outb(0x64, 0xA8);
+    while (inb(0x64) & 2);
+    // Enable interrupts
+    config |= 0b01000001;
+    outb(0x64, 0x60);
+    while (inb(0x64) & 2);
+    outb(0x60, config);
+    while (inb(0x64) & 2);
+    kprintf("Modified PS/2 config byte is %x\n", config);
+
     idt_load();
 
     // kprintf("Total free pages: %d\n", *(u32 *) ((char *) &free_pages + HIGHER_HALF_BASE));
 
     kprint(
         "////////                      //               ///   /////         |    \n"
-        "////////                     ///                       ///       \\ | /  \n"
-        "///       //////  ///  /// ////////  //////  //////    ///      \\ \\|/ / \n"
-        "//////// ///   //  // ///    ///    //    //   ///     ///       \\ | /  \n"
-        "//////// //    //   ////     ///      //////   ///     ///      \\ \\|/ / \n"
-        "///      //    //   ////     ///    ////  //   ///     ///       \\ | /  \n"
-        "///      //   ///  /// //    /// // //   ///   ///     ///        \\|/   \n"
+        "////////                     ///                       ///       \\ | *  \n"
+        "///       //////  ///  /// ////////  //////  //////    ///      \\ \\|* * \n"
+        "//////// ///   //  // ///    ///    //    //   ///     ///       \\ | *  \n"
+        "//////// //    //   ////     ///      //////   ///     ///      \\ \\|* * \n"
+        "///      //    //   ////     ///    ////  //   ///     ///       \\ | *  \n"
+        "///      //   ///  /// //    /// // //   ///   ///     ///        \\|*   \n"
         "///       //////  ///  ///    ////   //////  /////// ///////       |    \n"
         "\n\n"
         "Welcome! Try `ls` to get started.\n"
@@ -148,7 +196,8 @@ higher_half_entry() {
     if (sh_inode == 0) {
         panic("Init program not found");
     }
-    exec_helper(sh_inode, 0, 0, 0, 0);
+    struct proc *sh_proc = exec_helper(sh_inode, 0, 0, 0, 0);
+    sh_proc_pid = sh_proc->pid;
 
     idle();
 

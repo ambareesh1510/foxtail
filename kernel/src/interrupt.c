@@ -118,7 +118,7 @@ void page_fault_handler_inner(struct fault_frame_with_error_code *f) {
     if ((f->error_code & 0x4) || (fault_addr < HIGHER_HALF_BASE)) {
         struct proc *curr = get_current_proc();
         cleanup_proc(curr);
-        kprintf("Killed process `%s` (PID %d): Page Fault\n", curr->name, curr->pid);
+        kprintf("Killed process `%s` (PID %d): Page Fault at address 0x%x (eip=%x)\n", curr->name, curr->pid, fault_addr, f->ip);
         __asm__ volatile("int $0x20");
     } else {
         panic(
@@ -280,8 +280,10 @@ timer_handler_default:
     // kprintf("IRET target: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
     //     f->frame.ip, f->frame.cs, f->frame.flags,
     //     f->frame.sp, f->frame.ss);
+    curr_proc = get_current_proc();
     ticks++;
     pic_send_eoi(0);
+
     if (!proc_exists) {
         return 0;
     } else {
@@ -373,7 +375,8 @@ u32 input_buffer_read_ptr = 0;
 
 bool input_buffer_nonempty = false;
 
-u32 shift_count = 0;
+bool left_shift = false;
+bool right_shift = false;
 
 __attribute__ ((naked))
 void keyboard_interrupt_handler() {
@@ -401,52 +404,50 @@ void keyboard_interrupt_handler() {
 }
 
 void keyboard_interrupt_handler_inner() {
-    u8 scancode = inb(0x60);
-    kb_char = scancode;
-    if (scancode == 0x2A || scancode == 0x36) {
-        shift_count++;
-    }
-    if (scancode == 0xAA || scancode == 0xB6) {
-        shift_count--;
-    }
-    if (scancode < 128 && kbd_US[scancode] != 0) {
-        char c;
-        if (shift_count > 0) {
-            c = kbd_shift_US[scancode];
-        } else {
-            c = kbd_US[scancode];
-        };
-        bool valid = (c != 0);
-        // bool valid =
-        //     ('0' <= c && c <= '9')
-        //     || ('a' <= c && c <= 'z')
-        //     || ('A' <= c && c <= 'Z')
-        //     || (c == '.')
-        //     || (c == '/')
-        //     || (c == '\n')
-        //     || (c == ' ')
-        //     || (c == '\b' && input_staging_buffer_write_ptr > 0);
-        if (!valid) {
-            goto keyboard_handler_end;
+    u8 scancode;
+    if (inb(0x64) & 1) {
+        scancode = inb(0x60);
+
+        kb_char = scancode;
+        if (scancode == 0x2A) {
+            left_shift = true;
+        } else if (scancode == 0x36) {
+            right_shift = true;
+        } else if (scancode == 0xAA) {
+            left_shift = false;
+        } else if (scancode == 0xB6) {
+            right_shift = false;
         }
-        if (c != '\b') {
-            kprint_char(c);
-        }
-        input_staging_buffer[input_staging_buffer_write_ptr] = c;
-        input_staging_buffer_write_ptr = min(input_staging_buffer_write_ptr + 1, INPUT_BUFFER_LEN - 1);
-        if (c == '\n') {
-            // Copy to input buffer
-            for (u32 i = 0; i < input_staging_buffer_write_ptr; i++) {
-                input_buffer[input_buffer_write_ptr] = input_staging_buffer[i];
-                input_buffer_write_ptr = (input_buffer_write_ptr + 1) % INPUT_BUFFER_LEN;
+        if (scancode < 128 && kbd_US[scancode] != 0) {
+            char c;
+            if (left_shift || right_shift) {
+                c = kbd_shift_US[scancode];
+            } else {
+                c = kbd_US[scancode];
+            };
+            bool valid = (c != 0);
+            if (!valid) {
+                goto keyboard_handler_end;
             }
-            input_staging_buffer_write_ptr = 0;
-            input_buffer_nonempty = true;
-        } else if (c == '\b') {
-            input_staging_buffer_write_ptr--;
-            if (input_staging_buffer_write_ptr > 0) {
+            if (c != '\b') {
                 kprint_char(c);
+            }
+            input_staging_buffer[input_staging_buffer_write_ptr] = c;
+            input_staging_buffer_write_ptr = min(input_staging_buffer_write_ptr + 1, INPUT_BUFFER_LEN - 1);
+            if (c == '\n') {
+                // Copy to input buffer
+                for (u32 i = 0; i < input_staging_buffer_write_ptr; i++) {
+                    input_buffer[input_buffer_write_ptr] = input_staging_buffer[i];
+                    input_buffer_write_ptr = (input_buffer_write_ptr + 1) % INPUT_BUFFER_LEN;
+                }
+                input_staging_buffer_write_ptr = 0;
+                input_buffer_nonempty = true;
+            } else if (c == '\b') {
                 input_staging_buffer_write_ptr--;
+                if (input_staging_buffer_write_ptr > 0) {
+                    kprint_char(c);
+                    input_staging_buffer_write_ptr--;
+                }
             }
         }
     }
