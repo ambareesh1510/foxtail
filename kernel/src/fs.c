@@ -107,7 +107,7 @@ struct inode *get_inode_by_path(
     }
     char path_buf[FILENAME_MAX_LEN] = {0};
     u32 i = 0;
-    for (; path[i] != '/' && path[i] != '\0'; i++) {
+    for (; i < FILENAME_MAX_LEN && path[i] != '/' && path[i] != '\0'; i++) {
         path_buf[i] = path[i];
     }
     path_buf[i] = '\0';
