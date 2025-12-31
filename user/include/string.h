@@ -27,6 +27,19 @@ unsigned int strcmp(const char *a, const char *b) {
     }
 }
 
+int strncmp(const char *a, const char *b, int n) {
+    for (int i = 0; i < n; i++) {
+        if (!a[i] || !b[i]) {
+            return a[i] - b[i];
+        }
+        if (a[i] != b[i]) {
+            return a[i] - b[i];
+        }
+    }
+    return 0;
+}
+
+
 void strcpy(char *dst, char *src) {
     if (dst == 0 || src == 0) {
         return;
