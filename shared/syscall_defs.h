@@ -33,7 +33,7 @@ enum syscall_code {
 #define SYS_WRITE_BAD_PERMS -3
 
 // Write the null-terminated string `str` to stdout.
-// Returns: 0 on success, -1 on error.
+// Returns: 0 on success, negative return code on error.
 static inline int write(int fd, const char *buf, unsigned int count) {
     int ret;
     __asm__ volatile(
@@ -50,7 +50,7 @@ static inline int write(int fd, const char *buf, unsigned int count) {
 #define SYS_READ_BAD_PERMS -3
 
 // Read up to `count` bytes from `fd` into `buf`.
-// Returns: number of bytes read, or -1 on error
+// Returns: 0 on success, negative return code on error.
 static inline int read(int fd, char *buf, unsigned int count) {
     int ret;
     __asm__ volatile(
@@ -77,7 +77,7 @@ struct spawn_custom_command {
 };
 
 // Spawn a new process from the given `path`.
-// Returns: PID of new process on success, -1 on error
+// Returns: PID of new process on success, -1 on error.
 static inline int spawn_proc(const char *path, unsigned int argc, char **argv, unsigned int num_custom_commands, struct spawn_custom_command *commands) {
     int ret;
     __asm__ volatile(
@@ -90,7 +90,7 @@ static inline int spawn_proc(const char *path, unsigned int argc, char **argv, u
 }
 
 // Get PID of current process.
-// Returns: PID of current process
+// Returns: PID of current process.
 static inline int getpid(void) {
     int ret;
     __asm__ volatile(
@@ -101,7 +101,7 @@ static inline int getpid(void) {
     return ret;
 }
 
-// Exit current process.
+// Exit current process with the given `exit_code`.
 // Does not return.
 __attribute__((noreturn))
 static inline void exit(int exit_code) {
@@ -111,7 +111,7 @@ static inline void exit(int exit_code) {
         : "a"(SYS_EXIT), "b"(exit_code)
     );
     // Should never reach here
-    while(1);
+    while (1);
 }
 
 // Wait for child process with given `pid` to exit.
@@ -140,6 +140,8 @@ static inline char *sbrk(int delta) {
     return ret; 
 }
 
+// Change directories to the given `path`.
+// Returns: 0 on success, -1 on failure.
 static inline int cd(const char *path) {
     int ret;
     __asm__ volatile(
@@ -151,6 +153,8 @@ static inline int cd(const char *path) {
     return ret; 
 }
 
+// Write the current working directory to the given `buf` (whose length is `size`).
+// Returns: 0 on success, -1 on failure.
 static inline int pwd(char *buf, unsigned int size) {
     int ret;
     __asm__ volatile(
@@ -165,6 +169,8 @@ static inline int pwd(char *buf, unsigned int size) {
 #define SYS_OPEN_FILE_MODE_READ  (1 << 1)
 #define SYS_OPEN_FILE_MODE_WRITE (1 << 2)
 
+// Open the file at `path` in the given `mode`.
+// Returns: new file descriptor on success, -1 on failure.
 static inline int open(const char *path, unsigned int mode) {
     int ret;
     __asm__ volatile(
@@ -176,6 +182,8 @@ static inline int open(const char *path, unsigned int mode) {
     return ret; 
 }
 
+// Replace the given `fd` by opening the file at `path` in the given `mode`.
+// Returns: 0 on success, -1 on failure.
 static inline int reopen(unsigned int fd, const char *path, unsigned int mode) {
     int ret;
     __asm__ volatile(
@@ -187,6 +195,8 @@ static inline int reopen(unsigned int fd, const char *path, unsigned int mode) {
     return ret; 
 }
 
+// Close the given `fd`.
+// Returns: 0 on success, -1 on failure.
 static inline int close(unsigned int fd) {
     int ret;
     __asm__ volatile(
@@ -198,6 +208,8 @@ static inline int close(unsigned int fd) {
     return ret; 
 }
 
+// Set the pointer of `fd` to `ptr`.
+// Returns: 0 on success, -1 on failure.
 static inline int set_ptr(unsigned int fd, unsigned int ptr) {
     int ret;
     __asm__ volatile(
