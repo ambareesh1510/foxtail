@@ -255,11 +255,11 @@ u32 timer_interrupt_handler_inner(
     struct regs_and_interrupt_frame *f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
 
     // Restore registers in interrupt frame
-    f->frame.sp = curr_proc->registers.esp;
-    f->frame.ip = curr_proc->registers.eip;
-    f->frame.cs = curr_proc->registers.cs;
-    f->frame.ss = curr_proc->registers.ss;
-    f->frame.flags = curr_proc->registers.eflags;
+    f->frame.sp = HIGHER_HALF_BASE - 12;
+    f->frame.ip = curr_proc->entry;
+    f->frame.cs = 0x1B;
+    f->frame.ss = 0x23;
+    f->frame.flags = curr_proc->eflags;
 
     // Restore general purpose registers
     f->regs.eax = curr_proc->registers.eax;

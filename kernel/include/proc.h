@@ -8,11 +8,6 @@ struct saved_registers {
     // Set manually
     u32 eax, ebx, ecx, edx, esi, edi;
     u32 ebp; 
-    // uint16_t ds, es, fs, gs;
-    // Set by iret
-    u32 esp, eip;
-    u16 cs, ss;
-    u32 eflags;
 };
 
 enum proc_status {
@@ -52,6 +47,8 @@ struct proc {
     u32 pid;
     u32 cr3;
     struct saved_registers registers;
+    u32 entry;
+    u32 eflags;
     char name[FILENAME_MAX_LEN];
     // Physical address of the kernel stack. Unused for now
     u32 kernel_stack;
@@ -60,7 +57,6 @@ struct proc {
     u32 parent_idx;
     u32 waiting_on;
     u32 kernel_sp;
-    u32 kernel_bp;
     u32 brk;
     // Holds the exit code of the last "wait"ed process when this process is still alive;
     // holds its own exit code once it exits.

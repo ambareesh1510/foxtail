@@ -231,7 +231,7 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
         "orl $0x200, %%eax\n"        // Enable interrupts by setting appropriate flag
         "mov %%eax, %0\n"
         // "popal\n"
-        : "=m"(new_proc->registers.eflags)
+        : "=m"(new_proc->eflags)
         : :
         "eax",
         // TODO: why do I need to mark ebx clobbered?
@@ -247,11 +247,7 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
     
 
     // Copy new process's details into the proc struct
-    new_proc->registers.cs = 0x1B;
-    new_proc->registers.ss = 0x23;
-    new_proc->registers.esp = HIGHER_HALF_BASE - 12;
-    new_proc->registers.ebp = HIGHER_HALF_BASE;
-    new_proc->registers.eip = elf_header.entry;
+    new_proc->entry = elf_header.entry;
 
     new_proc->status = EMBRYO;
     new_proc->cwd = get_root_inode();
@@ -301,63 +297,4 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
     //         new_proc->registers.eip, new_proc->registers.cs, new_proc->registers.eflags, new_proc->registers.esp, new_proc->registers.ss);
     new_proc->present = true;
     return new_proc;
-}
-
-enum exec_status exec(struct inode *prog) {
-    if (prog->type == FT_DIRECTORY) {
-        return EXEC_ERROR_FT_DIRECTORY;
-    }
-
-    struct elf_header elf_header;
-    fs_read_bytes(prog, 0, sizeof(elf_header), (char *) (&elf_header));
-    
-    if (elf_header.magic != ELF_MAGIC) {
-        return EXEC_ERROR_INVALID_MAGIC;
-    }
-
-    struct proc *new_proc = exec_helper(prog, 0, 0, 0, 0);
-    if (new_proc == 0) {
-        panic("Exec helper failed\n");
-    }
-    new_proc->status = RUNNABLE;
-    new_proc->parent_pid = 0xFFFFFFFF;
-    scheduler_proc_index = ((u32) new_proc - (u32) ptable) / sizeof(struct proc);
-
-    // Ring 3 transition
-    tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
-    __asm__ volatile (
-        "mov %0, %%eax\n"
-        "mov %%eax, %%cr3\n"
-        "mov %%cr0, %%eax\n"
-        "orl $0x80000001, %%eax\n"
-        "mov %%eax, %%cr0\n"
-        :
-        : "r"(new_proc->cr3)
-        : "eax"
-    );
-    __asm__ volatile(
-        "cli\n"
-        
-        // User data segment is 0x20; OR with Requested Privilege Level (RPL = 0x3)
-        "mov $0x23, %%ax\n"
-        "mov %%ax, %%ds\n"
-        "mov %%ax, %%es\n"
-        "mov %%ax, %%fs\n"
-        "mov %%ax, %%gs\n"
-        
-        "pushl $0x23\n"              // User data segment
-        "pushl %0\n"                 // eip (user stack)
-        "pushf\n"                    // eflags
-        "popl %%eax\n"
-        "orl $0x200, %%eax\n"        // Enable interrupts by setting appropriate flag
-        "pushl %1\n"              // Push modified eflags
-        "pushl $0x1B\n"              // User code segment
-        "pushl %2\n"                 // esp
-        "sti\n"
-        
-        "iret\n"                     // iret to ring 3
-        : : "r"(new_proc->registers.esp), "r"(new_proc->registers.eflags), "r"(new_proc->registers.eip) : "eax"
-    );
-
-    return EXEC_SUCCESS;
 }
