@@ -6,8 +6,8 @@
 
 #include "fs_defs.h"
 
-#define FS_DIR "mkfs/fs"
-#define FS_OUT "fs.bin"
+char *fs_dir;
+char *fs_out;
 
 const char *get_filename(const char *path) {
     const char *filename = strrchr(path, '/');
@@ -82,7 +82,7 @@ int process_dir(
     size_t reserved_inode_idx = *curr_inode;
     (*curr_inode)++;
     struct inode new_inode = {0};
-    if (strcmp(name, FS_DIR) == 0) {
+    if (strcmp(name, fs_dir) == 0) {
         strcpy(new_inode.name, FS_ROOT_PATH);
         new_inode.parent = 0;
     } else {
@@ -123,10 +123,18 @@ int process_dir(
     return reserved_inode_idx;
 }
 
-int main() {
+int main(int argc, char **argv) {
 #if CHAR_BIT != 8
 #error CHAR_BIT != 8
 #endif
+
+    if (argc != 3) {
+        printf("[ERR] Incorrect number of arguments\n");
+        printf("[LOG] Usage: mkfs [fs_dir] [fs_out_file]");
+        return 1;
+    }
+    fs_dir = argv[1];
+    fs_out = argv[2];
 
     char bitmap[NUM_BITMAP_BLOCKS * BLOCK_SIZE] = {0};
     for (int i = 0; i < NUM_BITMAP_BLOCKS + NUM_INODE_BLOCKS; i++) {
@@ -138,15 +146,15 @@ int main() {
     size_t curr_data_block = NUM_BITMAP_BLOCKS + NUM_INODE_BLOCKS;
     // size_t curr_data_block = NUM_INODE_BLOCKS;
 
-    process_dir(inodes, &curr_inode, data_blocks, &curr_data_block, bitmap, FS_DIR);
+    process_dir(inodes, &curr_inode, data_blocks, &curr_data_block, bitmap, fs_dir);
 
     FILE *fs;
-    fs = fopen(FS_OUT, "wb");
+    fs = fopen(fs_out, "wb");
     if (fs == NULL) {
-        printf("[ERR] Failed to open %s for writing\n", FS_OUT);
+        printf("[ERR] Failed to open %s for writing\n", fs_out);
         return 1;
     }
-    printf("[LOG] Writing filesystem to disk at %s\n", FS_OUT);
+    printf("[LOG] Writing filesystem to disk at %s\n", fs_out);
     fwrite(bitmap, BLOCK_SIZE, NUM_BITMAP_BLOCKS, fs);
     fwrite(inodes, sizeof(struct inode), sizeof(inodes) / sizeof(struct inode), fs);
     fwrite(data_blocks, BLOCK_SIZE, NUM_BLOCKS - NUM_INODE_BLOCKS - NUM_BITMAP_BLOCKS, fs);

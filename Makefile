@@ -29,6 +29,7 @@ USER_EXES = $(USER_SRCS_C:$(USER_SRC_DIR)/%.c=$(USER_EXE_DIR)/%)
 MKFS_FS_DIR = mkfs/fs
 MKFS_SRC_DIR = mkfs/src
 MKFS_BIN_DIR = mkfs/bin
+MKFS_FS_IN_DIR = fs
 MKFS_FS_OUT_FILE = fs.bin
 
 # Compiler/linker options
@@ -39,7 +40,7 @@ USER_CFLAGS = -target i386-elf -std=c23 -m32 -ffreestanding -fno-builtin -O2 -Wa
 LDFLAGS = -m elf_i386 -nostdlib -T link.ld
 USER_LDFLAGS = -m elf_i386 -nostdlib -T user.ld --strip-all
 
-.PHONY: all clean run iso_dir prepare_iso prepare
+.PHONY: all clean run iso_dir fs prepare_iso prepare user prepare_user
 
 all: prepare fs $(ISO)
 
@@ -80,6 +81,8 @@ clean:
 	rm -rf $(ISO_DIR)
 	rm -rf $(KERNEL_OBJ_DIR)
 	rm -rf $(USER_OBJ_DIR) $(USER_EXE_DIR)
+	rm -rf $(MKFS_BIN_DIR)
+	rm -rf $(MKFS_FS_IN_DIR)
 	rm -f $(MKFS_FS_OUT_FILE)
 
 prepare:
@@ -98,9 +101,11 @@ $(USER_OBJ_DIR)/%.o: $(USER_SRC_DIR)/%.c
 	$(CC) $(USER_CFLAGS) -c $< -o $@
 
 fs: user
+	rm -rf $(MKFS_FS_IN_DIR)
 	rm -f $(MKFS_FS_OUT_FILE)
-	mkdir -p $(MKFS_FS_DIR)
-	cp $(USER_EXE_DIR)/* $(MKFS_FS_DIR)
+	mkdir -p $(MKFS_FS_IN_DIR)
+	cp -r $(MKFS_FS_DIR)/* $(MKFS_FS_IN_DIR)
+	cp -r $(USER_EXE_DIR)/* $(MKFS_FS_IN_DIR)
 	mkdir -p $(MKFS_BIN_DIR)
 	$(CC) -std=c23 -I$(KERNEL_INCLUDE_DIR) $(MKFS_SRC_DIR)/main.c -o $(MKFS_BIN_DIR)/mkfs -D_DEFAULT_SOURCE
-	$(MKFS_BIN_DIR)/mkfs
+	$(MKFS_BIN_DIR)/mkfs $(MKFS_FS_IN_DIR) $(MKFS_FS_OUT_FILE)

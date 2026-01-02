@@ -3,7 +3,7 @@
 
 #include "util.h"
 
-#define FS_ROOT_PATH "-"
+#define FS_ROOT_PATH "~"
 
 enum filetype {
     FT_UNALLOCATED,
