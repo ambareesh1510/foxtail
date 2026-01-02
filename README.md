@@ -11,6 +11,13 @@ It supports preemptive multitasking, virtual memory, and over 20 syscalls that e
 The current development build of Foxtail includes a variety of standard user-space utilities.
 It is also runnable on real hardware (although you might have to turn on the "Legacy Mode" setting in your BIOS).
 
+<p align="center">
+  <img src="images/hardware.jpg" width="50%" alt="Foxtail running on real hardware.">
+  <br>
+  <em>Foxtail running on a Thinkpad X1 Carbon.</em>
+</p>
+
+
 ## Building
 
 Currently, the Makefile only works on Linux with Clang.
