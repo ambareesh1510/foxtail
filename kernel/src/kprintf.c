@@ -57,7 +57,6 @@ void kprint_uint32_hex(u32 c, char *buf) {
 }
 
 void kprint_uint32_dec(u32 value, char* buf) {
-    // Handle the special case of 0.
     if (value == 0) {
         buf[0] = '0';
         buf[1] = '\0';
@@ -67,8 +66,8 @@ void kprint_uint32_dec(u32 value, char* buf) {
     int i = 0;
     // Find the digits in reverse order.
     while (value > 0) {
-        buf[i] = '0' + (value % 10);  // Get the last digit
-        value /= 10;                   // Remove the last digit
+        buf[i] = '0' + (value % 10);
+        value /= 10;
         i++;
     }
 

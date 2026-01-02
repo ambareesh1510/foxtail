@@ -52,12 +52,12 @@ void sys_write(struct syscall_registers *s) {
         }
     } else if (status == FD_PIPE) {
         u32 pipe_idx = curr_proc->fds[s->ebx].data.pipe_idx;
-        // if (pipe_data[pipe_idx].num_refs < 2) {
-        //     // Read end is closed.
-        //     // TODO: proper error code
-        //     s->eax = -1;
-        //     return;
-        // }
+        if (pipe_data[pipe_idx].num_refs < 2) {
+            // Read end is closed.
+            // TODO: proper error code
+            s->eax = -1;
+            return;
+        }
         for (u32 i = 0; i < s->edx; i++) {
             if (
                 (pipe_data[pipe_idx].internal_write_ptr + 1) % PIPE_BUF_SIZE == (pipe_data[pipe_idx].read_ptr) % PIPE_BUF_SIZE
@@ -149,7 +149,6 @@ void sys_read(struct syscall_registers *s) {
             }
             buf[count] = pipe_buffers[pipe_idx][pipe_data[pipe_idx].read_ptr];
             pipe_data[pipe_idx].read_ptr = (pipe_data[pipe_idx].read_ptr + 1) % PIPE_BUF_SIZE;
-            // pipe_data[pipe_idx].read_ptr = (pipe_data[pipe_idx].read_ptr + 1);
         }
         s->eax = count;
         return;
@@ -188,7 +187,6 @@ void sys_spawn_proc(struct syscall_registers *s) {
         new_proc->parent_pid = curr_proc->pid;
         new_proc->parent_idx = get_proc_idx(curr_proc);
         new_proc->cwd = curr_proc->cwd;
-        // kprintf("Spawn %d\n", new_proc->pid);
         s->eax = new_proc->pid;
     }
 }
@@ -206,7 +204,6 @@ void sys_exit(
     struct proc *curr_proc = get_current_proc();
     cleanup_proc(curr_proc);
     curr_proc->exit_code = s->ebx;
-    // kprintf("Kill %d\n", get_current_proc()->pid);
     __asm__ volatile ("int $0x20");
 }
 
@@ -239,13 +236,14 @@ void sys_wait(struct syscall_registers *s) {
 
 u32 sbrk_temp_pgdir[PGDIR_LEN];
 void sbrk_helper(struct proc *curr_proc, i32 delta) {
+    // Round up brk_delta.
     i32 brk_delta = ((delta + PGSIZE - 1) / PGSIZE) * PGSIZE;
     if (brk_delta == 0) {
         return;
     } 
 
     // Start allocating at 0x80000000.
-    // TODO: when adding resizeable kernel stack, make sure allocation doesn't overlap stack.
+    // TODO: make sure allocation doesn't overlap user/kernel stack.
     kernel_pgtbl[PGDIR_LEN - 1] = curr_proc->cr3 | 0x3;
     flush_tlb();
     memcpy((char *) sbrk_temp_pgdir, (char *) temp_page_ptr, PGSIZE);
@@ -295,10 +293,7 @@ void sbrk_helper(struct proc *curr_proc, i32 delta) {
 
 void sys_sbrk(struct syscall_registers *s) {
     struct proc *curr_proc = get_current_proc();
-
-    // Round up brk_delta.
     i32 brk_delta = s->ebx;
-
     s->eax = curr_proc->brk;
     sbrk_helper(curr_proc, brk_delta);
     return;
@@ -761,7 +756,8 @@ void sys_link(struct syscall_registers *s) {
         return;
     }
     for (u32 i = 0; i < new_path_len; i++) {
-        // TODO: check contains path separator
+        // TODO: check if new path contains forbidden characters
+        // (path separator, root, etc)
         if (new_path[i] == '/') {
             s->eax = -1;
             return;

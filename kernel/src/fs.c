@@ -79,7 +79,7 @@ struct inode *follow_symlink(struct inode *link) {
 
 
 struct inode *get_inode_at_idx(u32 idx) {
-    return (struct inode *) (fs + NUM_BITMAP_BLOCKS * BLOCK_SIZE + idx * sizeof(struct inode));
+    return &inodes[idx];
 }
 
 u32 get_index_from_inode(struct inode *inode) {
@@ -99,8 +99,6 @@ struct inode *get_inode_by_path(
     if (strlen(path) == 0) {
         return base;
     }
-    // TODO: follow symlinks only if we're going deeper
-    // does this approach work?
     base = follow_symlink(base);
     if (base->type == FT_FILE) {
         return 0;
@@ -178,7 +176,6 @@ u32 get_block_from_inode_offset(
 u32 fs_move_bytes(struct inode *inode, u32 offset, u32 size, char *buf, bool is_read) {
     inode = follow_symlink(inode);
     // If it's a write and the file isn't big enough, allocate more blocks
-    // TODO: test this
     if (!is_read) {
         u32 end = offset + size;
         if (end > inode->data.file_data.size) {

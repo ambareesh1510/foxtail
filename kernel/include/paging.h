@@ -22,7 +22,6 @@ extern u32 *kernel_pgtbl;
 extern u32 *kernel_hh_pgdir;
 extern u32 *temp_page_ptr;
 
-// void paging_setup();
 void 
 __attribute__ ((section(".boot.text")))
 paging_setup(u32 *kernel_pgdir, u32 *kernel_id_pgtbl);

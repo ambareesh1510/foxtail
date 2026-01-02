@@ -23,7 +23,6 @@ struct spawn_custom_command *global_commands;
 
 struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_custom_commands, struct spawn_custom_command *commands) {
     prog = prog_ptr;
-    // kprintf("init: got %x commands\n", &num_custom_commands);
     global_argc = argc;
     global_argv = argv;
     global_num_custom_commands = num_custom_commands;
@@ -38,9 +37,6 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
     memcpy(new_proc->name, prog->name, FILENAME_MAX_LEN);
 
     // Use the last entry of kernel_pgtbl as a temporary buffer.
-    // TODO: maybe move these to global scope, since they're also used in cleanup?
-    
-    // uint32_t new_pgdir[PGDIR_LEN] = {0};
     memset((char *) new_pgdir, 0, PGSIZE);
 
     for (u32 i = 0; i < elf_header.phnum; i++) {
@@ -238,14 +234,7 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
         "ebx"
      // "%eax", "%ebx", "%ecx", "%edx", "%ebx", "%esp", "%ebp", "%esi", "%edi"  // Mark affected registers as clobbered
     );
-//     asm volatile (
-//     "popal\n"  // Pops all registers (AX, BX, CX, DX, SP, BP, SI, DI)
-//     : // No outputs
-//     : // No inputs
-// );
-
     
-
     // Copy new process's details into the proc struct
     new_proc->entry = elf_header.entry;
 

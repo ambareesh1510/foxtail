@@ -12,15 +12,9 @@
 #include "util.h"
 #include "kstring.h"
 
-struct higher_half_info {
-    u32 mem_lower;
-    u32 mem_upper;
-    u32 mmap_len;
-    u32 mmap_addr;
-};
-
 void higher_half_entry();
 
+// TODO: add debug print for this
 __attribute__ ((section(".boot.data")))
 u32 free_pages = 0;
 
@@ -72,27 +66,19 @@ kernel_main(void) {
     // addresses. We need this so that we can use the stack once the lower half
     // mapping is invalidated.
     __asm__ volatile (
-        "add $0xC0000000, %esp\n"
-        "add $0xC0000000, %ebp\n"
+        "add $0xC0000000, %%esp\n"
+        "add $0xC0000000, %%ebp\n"
+        : : : "esp", "ebp"
     );
 
-
-    // __asm__ volatile (
-    //     "calll %0\n"
-    //     : : "r"(higher_half_entry)
-    // );
     __asm__ volatile(
         "jmp *%0\n"
         : : "r"((u32) higher_half_entry)
     );
-    // higher_half_entry();
-//     void (*hh_entry)(void) =
-//     (void (*)(void))((uint32_t)higher_half_entry + HIGHER_HALF_BASE);
-//
-// hh_entry();
 
 }
 
+char idle_kernel_stack[2 * PGSIZE];
 void idle() {
     __asm__ volatile ("int $0x20\n");
     for (;;) {
@@ -100,13 +86,7 @@ void idle() {
     }
 }
 
-char a_kernel_stack[2 * PGSIZE];
-void
-higher_half_entry() {
-    __asm__ volatile (
-        "mov %0, %%esp"
-        : : "r"(a_kernel_stack + 2 * PGSIZE)
-    );
+void higher_half_entry() {
     // Unmap the identity mapping of the lower half.
     kernel_pgdir[0] = 0;
     __asm__ volatile (
@@ -168,8 +148,6 @@ higher_half_entry() {
 
     idt_load();
 
-    // kprintf("Total free pages: %d\n", *(u32 *) ((char *) &free_pages + HIGHER_HALF_BASE));
-
     kprint(
         "////////                      //               ///   /////         |    \n"
         "////////                     ///                       ///       \\ | *  \n"
@@ -190,7 +168,7 @@ higher_half_entry() {
     strcpy(idle_proc->name, "idle");
     idle_proc->cr3 = (u32) kernel_pgdir;
     idle_proc->status = RUNNABLE;
-    idle_proc->kernel_sp = (u32) a_kernel_stack + 2 * PGSIZE;
+    idle_proc->kernel_sp = (u32) idle_kernel_stack + 2 * PGSIZE;
 
     struct inode *sh_inode = get_inode_by_path(get_root_inode(), "sh");
     if (sh_inode == 0) {

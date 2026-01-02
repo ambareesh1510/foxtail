@@ -12,11 +12,7 @@ u32 *kernel_pgtbl = (u32 *) ((char *) kernel_id_pgtbl + HIGHER_HALF_BASE);
 u32 *kernel_hh_pgdir = (u32 *) ((char *) kernel_pgdir + HIGHER_HALF_BASE);
 u32 *temp_page_ptr = (u32 *) (HIGHER_HALF_BASE + PGSIZE * (PGDIR_LEN - 1));
 
-// Address that the kernel is mapped to in physical memory.
-
-void 
-// __attribute__ ((section(".boot")))
-paging_setup(u32 *kernel_pgdir, u32 *kernel_id_pgtbl) {
+void paging_setup(u32 *kernel_pgdir, u32 *kernel_id_pgtbl) {
   // Identity page the first megabyte.
   u32 addr = 0x0;
   for (u32 i = 0; i < PGTBL_LEN - 1; i++) {

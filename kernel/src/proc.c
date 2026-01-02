@@ -20,7 +20,6 @@ struct proc *alloc_proc() {
         if (ptable[i].status == UNUSED) {
             ptable[i] = (struct proc) {0};
             ptable[i].pid = curr_pid;
-            // kprintf("just allocated pid %d\n", curr_pid);
             curr_pid++;
             return ptable + i;
         }
@@ -56,7 +55,6 @@ void scheduler() {
             return;
         } else if (status == WAITING_ON_PID) {
             if (ptable[ptable[i].waiting_on].status == KILLED) {
-                // kprintf("pid %d killed, wake up %d\n", ptable[i].waiting_on, i);
                 ptable[i].status = RUNNABLE;
                 ptable[i].exit_code = ptable[ptable[i].waiting_on].exit_code;
                 scheduler_proc_index = i;

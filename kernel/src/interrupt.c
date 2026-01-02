@@ -152,8 +152,6 @@ u32 get_curr_pid() {
     return get_current_proc()->pid;
 }
 
-// char *a = "TEST_TIMER_HANDLER esp = %d\n";
-char *a = "TEST_TIMER_HANDLER %x\n";
 __attribute__ ((naked))
 void timer_interrupt_handler() {
     __asm__ volatile (
@@ -167,9 +165,9 @@ void timer_interrupt_handler() {
         "call timer_interrupt_handler_inner\n"
         // If it's an embryo, set the esp to
         // HIGHER_HALF_BASE - PGSIZE - sizeof(struct regs_and_interrupt_frame)
-        "cmp %1, %%eax\n"
+        "cmp %0, %%eax\n"
         "jne not_embryo\n"
-        "mov %2, %%esp\n"
+        "mov %1, %%esp\n"
         "call set_curr_proc_runnable\n"
         "not_embryo:\n"
         "call get_curr_pid\n"
@@ -184,10 +182,8 @@ void timer_interrupt_handler() {
         "popal\n"
         "iret\n"
         : :
-          "m"(a),
-          "i"(EMBRYO),
-          "i"(HIGHER_HALF_BASE - PGSIZE - sizeof(struct regs_and_interrupt_frame))
-          // "i"(0xBFFFEFCC)
+        "i"(EMBRYO),
+        "i"(HIGHER_HALF_BASE - PGSIZE - sizeof(struct regs_and_interrupt_frame))
         : "ebp", "esp", "eax", "ebx", "ecx", "edx", "memory", "cc"
     );
 }
@@ -198,19 +194,15 @@ u32 global_ebp;
 
 char ctx_switch_temp_stack[2 * PGSIZE];
 
-u32 timer_interrupt_handler_inner(
-    // struct regs_and_interrupt_frame *f
-) {
-    // pic_send_eoi(0);
+u32 timer_interrupt_handler_inner() {
     __asm__ volatile("mov 4(%%ebp), %0" : "=r"(global_ra));
+
     if (!proc_exists) {
         goto timer_handler_default;
     }
+
     struct proc *curr_proc = get_current_proc();
 
-
-
-    // __asm__ volatile ("push %esp");
     __asm__ volatile (
         "mov %%esp, %0\n"
         :
@@ -274,12 +266,8 @@ u32 timer_interrupt_handler_inner(
     tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
 
     __asm__ volatile ("movl %0, 0x4(%%ebp)" : : "r"(global_ra) : "memory");
+
 timer_handler_default:
-    // f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
-    // kprintf("curr proc pid=%d, status=%d, esp=%x\n", curr_proc->pid, curr_proc->status, curr_proc->kernel_sp);
-    // kprintf("IRET target: eip=%x cs=%x eflags=%x esp=%x ss=%x\n",
-    //     f->frame.ip, f->frame.cs, f->frame.flags,
-    //     f->frame.sp, f->frame.ss);
     curr_proc = get_current_proc();
     ticks++;
     pic_send_eoi(0);
@@ -366,6 +354,7 @@ char kbd_shift_US [128] =
 };
 
 
+// TODO: change this to work like pipes
 char input_staging_buffer[INPUT_BUFFER_LEN] = {0};
 u32 input_staging_buffer_write_ptr = 0;
 
@@ -451,6 +440,7 @@ void keyboard_interrupt_handler_inner() {
             }
         }
     }
+
 keyboard_handler_end:
     pic_send_eoi(1);
 }
