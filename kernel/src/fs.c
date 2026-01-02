@@ -86,9 +86,11 @@ u32 get_index_from_inode(struct inode *inode) {
     return ((u32) inode - (u32) inodes) / sizeof(struct inode);
 }
 
-struct inode *get_inode_by_path(
+
+struct inode *get_inode_by_path_helper(
     struct inode *base,
-    const char *path
+    const char *path,
+    bool first_elem
 ) {
     if (base == 0) {
         return 0;
@@ -114,6 +116,12 @@ struct inode *get_inode_by_path(
         next = base;
     } else if (strcmp(path_buf, "..") == 0) {
         next = get_inode_at_idx(base->parent);
+    } else if (strcmp(path_buf, FS_ROOT_PATH) == 0) {
+        if (first_elem) {
+            next = get_root_inode();
+        } else {
+            return 0;
+        }
     } else {
         for (u32 j = 0; j < base->data.directory_data.num_entries; j++) {
             struct inode *temp = get_inode_at_idx(base->data.directory_data.direct_files[j]);
@@ -123,7 +131,14 @@ struct inode *get_inode_by_path(
             }
         }
     }
-    return get_inode_by_path(next, path + i);
+    return get_inode_by_path_helper(next, path + i, false);
+}
+
+struct inode *get_inode_by_path(
+    struct inode *base,
+    const char *path
+) {
+    return get_inode_by_path_helper(base, path, true);
 }
 
 struct inode *get_root_inode() {

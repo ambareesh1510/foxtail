@@ -3,7 +3,7 @@
 #include "string.h"
 #include "printf.h"
 
-bool is_prefix(char *str, char *prefix) {
+bool is_prefix(const char *str, const char *prefix) {
     unsigned int i = 0;
     while (prefix[i] != '\0') {
         if (str[i] == '\0' || str[i] != prefix[i]) {
@@ -23,6 +23,82 @@ bool contains_pipe(const char *s) {
     return false;
 }
 
+
+char *env_path = "~/bin";
+
+int spawn_with_path(
+    const char *env_path,
+    const char *filename,
+    unsigned int argc,
+    char **argv,
+    unsigned int num_custom_commands,
+    struct spawn_custom_command *commands
+) {
+    // If filename is absolute, don't process PATH
+    if (is_prefix(filename, "~")) {
+        return spawn_proc(filename, argc, argv, num_custom_commands, commands);
+    }
+    
+    // If path is null, just use pwd
+    if (!env_path || env_path[0] == '\0') {
+        return spawn_proc(filename, argc, argv, num_custom_commands, commands);
+    }
+    
+    
+    // Try each directory in PATH
+    int dir_start = 0;
+    while (1) {
+        // Find next ':' or end of string
+        int dir_end = dir_start;
+        while (env_path[dir_end] && env_path[dir_end] != ':') {
+            dir_end++;
+        }
+        
+        int dir_len = dir_end - dir_start;
+        if (dir_len == 0) {
+            // Empty component, skip
+            if (!env_path[dir_end]) break;
+            dir_start = dir_end + 1;
+            continue;
+        }
+
+        int total_len = dir_len + 1 + strlen(filename) + 1;
+        char *full_path = malloc(total_len);
+        if (full_path == 0) {
+            return -1;
+        }
+        // Build full path: dir + "/" + filename
+        int i;
+        for (i = 0; i < dir_len; i++) {
+            full_path[i] = env_path[dir_start + i];
+        }
+        full_path[i] = '\0';
+        
+        // Add '/'
+        full_path[i++] = '/';
+        full_path[i] = '\0';
+        
+        strcat(full_path, filename);
+        
+        // Try to spawn
+        int pid = spawn_proc(full_path, argc, argv, num_custom_commands, commands);
+
+        free(full_path);
+        
+        if (pid >= 0) {
+            return pid;
+        }
+        
+        if (!env_path[dir_end]) {
+            break;
+        }
+        // Next dir in PATH
+        dir_start = dir_end + 1;
+    }
+    
+    // All paths failed
+    return -1;
+}
 
 #define MAX_ARGS 16
 
@@ -116,7 +192,8 @@ void _start() {
             left_cmd.data.remap_fds.curr_fd = p.write_fd;
             left_cmd.data.remap_fds.new_fd = 0;
 
-            int left_pid = spawn_proc(
+            int left_pid = spawn_with_path(
+                env_path,
                 argv_left[0],
                 argc_left,
                 argv_left,
@@ -138,7 +215,8 @@ void _start() {
             right_cmd.data.remap_fds.curr_fd = p.read_fd;
             right_cmd.data.remap_fds.new_fd = 1;
 
-            int right_pid = spawn_proc(
+            int right_pid = spawn_with_path(
+                env_path,
                 argv_right[0],
                 argc_right,
                 argv_right,
@@ -165,7 +243,7 @@ void _start() {
             if (argc == 0)
                 continue;
 
-            int res = spawn_proc(argv[0], argc, argv, 0, 0);
+            int res = spawn_with_path(env_path, argv[0], argc, argv, 0, 0);
             if (res < 0) {
                 puts("Unable to spawn process ");
                 puts(argv[0]);

@@ -170,7 +170,7 @@ void higher_half_entry() {
     idle_proc->status = RUNNABLE;
     idle_proc->kernel_sp = (u32) idle_kernel_stack + 2 * PGSIZE;
 
-    struct inode *sh_inode = get_inode_by_path(get_root_inode(), "sh");
+    struct inode *sh_inode = get_inode_by_path(get_root_inode(), "bin/sh");
     if (sh_inode == 0) {
         panic("Init program not found");
     }

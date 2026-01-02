@@ -40,7 +40,7 @@ int strncmp(const char *a, const char *b, int n) {
 }
 
 
-void strcpy(char *dst, char *src) {
+void strcpy(char *dst, const char *src) {
     if (dst == 0 || src == 0) {
         return;
     }
@@ -79,6 +79,11 @@ char *strchr(const char *s, int c) {
         return (char *)s;
 
     return 0;
+}
+
+void strcat(char *dst, const char *src) {
+    int dst_len = strlen(dst);
+    strcpy(dst + dst_len, src);
 }
 
 char *trim(char *s) {
