@@ -1,4 +1,6 @@
-isodir/
+bin/
+/isodir/
+/fs/
 .cache/
 kernel.elf
 os.iso
