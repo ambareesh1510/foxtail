@@ -48,3 +48,23 @@ void memcpy(char *dst, const char *src, u32 size) {
 void memset(char *dst, char val, u32 size) {
     while (size--) *dst++ = val;
 }
+
+void memmove(void *dest, const void *src, u32 n) {
+    u8 *d = (u8 *)dest;
+    const u8 *s = (const u8 *)src;
+
+    if (d == s || n == 0) {
+        return;
+    }
+
+    if (d < s) {
+        for (size_t i = 0; i < n; i++) {
+            d[i] = s[i];
+        }
+    } else {
+        for (size_t i = n; i != 0; i--) {
+            d[i - 1] = s[i - 1];
+        }
+    }
+}
+

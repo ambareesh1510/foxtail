@@ -35,7 +35,7 @@ MKFS_FS_OUT_FILE = fs.bin
 # Compiler/linker options
 CC = clang
 LD = ld.lld
-CFLAGS = -target i386-elf -std=c23 -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -Wpedantic -nostdlib -mno-sse -I $(KERNEL_INCLUDE_DIR) -I $(SHARED_INCLUDE_DIR) -g
+CFLAGS = -target i386-elf -std=c23 -m32 -ffreestanding -fno-builtin -O0 -Wall -Wextra -Wpedantic -nostdlib -mno-sse -I $(KERNEL_INCLUDE_DIR) -I $(SHARED_INCLUDE_DIR) -g
 USER_CFLAGS = -target i386-elf -std=c23 -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -Wpedantic -nostdlib -mno-sse -I $(USER_INCLUDE_DIR) -I $(SHARED_INCLUDE_DIR)
 LDFLAGS = -m elf_i386 -nostdlib -T link.ld
 USER_LDFLAGS = -m elf_i386 -nostdlib -T user.ld --strip-all
@@ -68,10 +68,10 @@ $(ISO): iso_dir
 	grub-mkrescue -o $(ISO) $(ISO_DIR) -d /usr/lib/grub/i386-pc
 
 run: $(ISO)
-	qemu-system-i386 -cdrom $(ISO) -m 512M -d int,cpu_reset --enable-kvm -no-reboot -no-shutdown
+	qemu-system-i386 -cdrom $(ISO) -m 512M -d int,cpu_reset -no-reboot -no-shutdown
 
 gdb: $(KERNEL)
-	qemu-system-i386 -kernel $(KERNEL) -m 1024M -d int,cpu_reset --enable-kvm -no-reboot -no-shutdown -s -S
+	qemu-system-i386 -cdrom $(ISO) -m 1024M -d int,cpu_reset --enable-kvm -no-reboot -no-shutdown -s -S
 
 kernel: $(KERNEL)
 	qemu-system-i386 -kernel $(KERNEL) -m 1024M -d int,cpu_reset -no-reboot -no-shutdown

@@ -14,6 +14,7 @@
 
 void higher_half_entry();
 
+
 // TODO: add debug print for this
 __attribute__ ((section(".boot.data")))
 u32 free_pages = 0;
@@ -59,6 +60,23 @@ kernel_main(void) {
     } else {
         // TODO: Panic!
     }
+
+    if (multiboot_info->flags & (1 << 12)) {
+        // Graphics mode info found
+        graphics_mode.type = VGA_GRAPHICS_MODE;
+        graphics_mode.width = multiboot_info->framebuffer_width;
+        graphics_mode.height = multiboot_info->framebuffer_height;
+        graphics_mode.depth = multiboot_info->framebuffer_bpp;
+        graphics_mode.pitch = multiboot_info->framebuffer_pitch;
+        graphics_mode.framebuffer = (u32) multiboot_info->framebuffer_addr;
+        // graphics_mode.framebuffer = (u8 *) ((u32) 0xA0000);
+        // graphics_mode.framebuffer = (u8 *) ((u32) 0xA0000 + HIGHER_HALF_BASE);
+        // for (u32 i = 0; i < 2000; i++) {
+        //     graphics_mode.framebuffer[i] = 0xFF;
+        // }
+    } else {
+        graphics_mode.type = VGA_TEXT_MODE;
+    }
     
     paging_setup(kernel_pgdir, kernel_id_pgtbl);
 
@@ -94,11 +112,12 @@ void higher_half_entry() {
         "mov %eax, %cr3\n"
     );
 
-    vga_clear();
-
     // We need to set the GDT to be able to use segment selectors in the higher
     // half.
     gdt_load();
+    
+    vga_init();
+    vga_clear();
 
     // Keyboard setup
     // Disable PS/2 devices
@@ -145,6 +164,7 @@ void higher_half_entry() {
     outb(0x60, config);
     while (inb(0x64) & 2);
     kprintf("Modified PS/2 config byte is %x\n", config);
+
 
     idt_load();
 

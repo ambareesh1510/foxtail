@@ -15,6 +15,9 @@ extern u32 *page_free_map_high;
 [[nodiscard]]
 u32 alloc_page();
 
+__attribute__ ((section(".boot.text")))
+u32 alloc_page_low();
+
 bool free_page(u32 page_index);
 
 #endif /* PGALLOC_H */

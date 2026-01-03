@@ -5,14 +5,32 @@
 #include "paging.h"
 
 #define VGA ((volatile u16 *) (0xB8000 + HIGHER_HALF_BASE))
-#define VGA_WIDTH 80
-#define VGA_HEIGHT 25
+#define VGA_GRAPHICS_FB ((volatile u8 *) (0xD0000000))
+
+extern u32 vga_width;
+extern u32 vga_height;
+
+struct graphics_mode {
+    enum {
+        VGA_TEXT_MODE,
+        VGA_GRAPHICS_MODE
+    } type;
+    u32 width;
+    u32 height;
+    u32 depth;
+    u32 pitch;
+    u32 framebuffer;
+};
+
+__attribute__ ((section(".boot.data")))
+extern struct graphics_mode graphics_mode;
+extern struct graphics_mode *graphics_mode_high;
+
+void vga_init();
 
 // write char to VGA row, col with attr
 void vga_putch_at(char c, u32 row, u32 col, u8 attr);
-
-// write null-terminated string at VGA row, col
-void vga_write_at(const char *s, u32 row, u32 col, u8 attr);
+void vga_shift_up();
 
 void vga_clear();
 

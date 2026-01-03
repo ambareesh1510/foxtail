@@ -54,7 +54,6 @@ void idt_write_entry(
     idt[index].flags = flags;
 }
 
-__attribute__ ((no_caller_saved_registers))
 void pic_send_eoi(u8 irq) {
     if (irq >= 8) {
         // IRQs 8-15 are handled by the slave PIC
@@ -191,6 +190,7 @@ void timer_interrupt_handler() {
 u32 global_ra;
 u32 global_esp;
 u32 global_ebp;
+struct proc *global_curr_proc;
 
 char ctx_switch_temp_stack[2 * PGSIZE];
 
@@ -201,66 +201,77 @@ u32 timer_interrupt_handler_inner() {
         goto timer_handler_default;
     }
 
-    struct proc *curr_proc = get_current_proc();
+    global_curr_proc = get_current_proc();
 
     __asm__ volatile (
         "mov %%esp, %0\n"
+        "mov %%ebp, %1\n"
         :
-        "=m"(curr_proc->kernel_sp)
+        "=m"(global_curr_proc->kernel_sp),
+        "=m"(global_curr_proc->kernel_bp)
         : : "memory"
     );
-    global_esp = curr_proc->kernel_sp;
+    global_esp = global_curr_proc->kernel_sp;
+    global_ebp = global_curr_proc->kernel_bp;
 
     scheduler();
-    curr_proc = get_current_proc();
+    global_curr_proc = get_current_proc();
 
     // Restore cr3
     __asm__ volatile (
+        "mov %1, %%ebx\n"
         "mov %0, %%eax\n"
         "mov %%eax, %%cr3\n"
-        "mov %1, %%esp\n"
+        "mov %%ebx, %%esp\n"
         : :
-        "m"(curr_proc->cr3),
+        "m"(global_curr_proc->cr3),
         "i"(ctx_switch_temp_stack + 2 * PGSIZE)
-        : "eax"
+        : "eax", "ebx", "memory"
     );
     // Switch to temporary kernel stack to avoid corrupting new process's kernel stack
     // TODO: this feels super hacky. is there a better solution?
 
-    struct proc *new_curr_proc = get_current_proc();
+    // struct proc *new_curr_proc = get_current_proc();
 
-    if (new_curr_proc->status != EMBRYO) {
+    if (global_curr_proc->status != EMBRYO) {
         __asm__ volatile (
-            "mov %0, %%esp"
-            : : "m"(new_curr_proc->kernel_sp)
+            "mov %0, %%esp\n"
+            "mov %1, %%ebp\n"
+            : :
+            "m"(global_curr_proc->kernel_sp),
+            "m"(global_curr_proc->kernel_bp)
             : "esp", "memory"
         );
         goto timer_handler_default;
     }
     __asm__ volatile (
         "mov %0, %%esp\n"
-        : : "m"(global_esp)
+        "mov %1, %%ebp\n"
+        : :
+        "m"(global_esp),
+        "m"(global_ebp)
         : "esp"
     );
 
+    // TODO: there's a bug with ebp (I think) that only happens on -O0. fix it
 
     struct regs_and_interrupt_frame *f = (struct regs_and_interrupt_frame *) (HIGHER_HALF_BASE - PGSIZE - sizeof(*f));
 
     // Restore registers in interrupt frame
     f->frame.sp = HIGHER_HALF_BASE - 12;
-    f->frame.ip = curr_proc->entry;
+    f->frame.ip = global_curr_proc->entry;
     f->frame.cs = 0x1B;
     f->frame.ss = 0x23;
-    f->frame.flags = curr_proc->eflags;
+    f->frame.flags = global_curr_proc->eflags;
 
     // Restore general purpose registers
-    f->regs.eax = curr_proc->registers.eax;
-    f->regs.ebx = curr_proc->registers.ebx;
-    f->regs.ecx = curr_proc->registers.ecx;
-    f->regs.edx = curr_proc->registers.edx;
-    f->regs.esi = curr_proc->registers.esi;
-    f->regs.edi = curr_proc->registers.edi;
-    f->regs.ebp = curr_proc->registers.ebp;
+    f->regs.eax = global_curr_proc->registers.eax;
+    f->regs.ebx = global_curr_proc->registers.ebx;
+    f->regs.ecx = global_curr_proc->registers.ecx;
+    f->regs.edx = global_curr_proc->registers.edx;
+    f->regs.esi = global_curr_proc->registers.esi;
+    f->regs.edi = global_curr_proc->registers.edi;
+    f->regs.ebp = global_curr_proc->registers.ebp;
 
 
     tss.esp0 = HIGHER_HALF_BASE - PGSIZE;
@@ -268,14 +279,14 @@ u32 timer_interrupt_handler_inner() {
     __asm__ volatile ("movl %0, 0x4(%%ebp)" : : "r"(global_ra) : "memory");
 
 timer_handler_default:
-    curr_proc = get_current_proc();
+    global_curr_proc = get_current_proc();
     ticks++;
     pic_send_eoi(0);
 
     if (!proc_exists) {
         return 0;
     } else {
-        return curr_proc->status;
+        return global_curr_proc->status;
     }
 }
 

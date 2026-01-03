@@ -8,5 +8,6 @@ u32 strcmp(const char *a, const char *b);
 u32 strcpy(char *dst, char *src);
 void memcpy(char *dst, const char *src, u32 size);
 void memset(char *dst, char val, u32 size);
+void memmove(void *dest, const void *src, u32 n);
 
 #endif /* STRING_H */

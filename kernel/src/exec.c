@@ -140,7 +140,10 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
         argv_buf += next_len;
     }
     
-    new_pgdir[HIGHER_HALF_BASE >> 22] = ((u32) ((char *) kernel_pgtbl - HIGHER_HALF_BASE) & 0xfffff000) | 0x3;
+    // Copy kernel mappings to user pgdir
+    for (u32 i = HIGHER_HALF_BASE >> 22; i < (PGSIZE / sizeof(u32)); i++) {
+        new_pgdir[i] = kernel_hh_pgdir[i];
+    }
     
     // Copy the new pgdir into newly allocated page
     u32 new_pgdir_addr = alloc_page() * PGSIZE;

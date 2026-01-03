@@ -75,7 +75,7 @@ void scheduler() {
             }
         } else if (status == KILLED) {
             if (ptable[i].pid == sh_proc_pid) {
-                struct inode *sh_inode = get_inode_by_path(get_root_inode(), "sh");
+                struct inode *sh_inode = get_inode_by_path(get_root_inode(), "~/bin/sh");
                 if (sh_inode == 0) {
                     panic("Init program not found");
                 }

@@ -13,14 +13,14 @@ void kprint_backspace() {
             return;
         }
         cursor_row--;
-        cursor_column = VGA_WIDTH - 1;
+        cursor_column = vga_width - 1;
     } else {
         cursor_column--;
     }
     kprint_char(' ');
     if (cursor_column == 0) {
         cursor_row--;
-        cursor_column = VGA_WIDTH - 1;
+        cursor_column = vga_width - 1;
     } else {
         cursor_column--;
     }
@@ -28,15 +28,8 @@ void kprint_backspace() {
 
 void kprint_next_line() {
     cursor_column = 0;
-    if (cursor_row == VGA_HEIGHT - 1) {
-        for (u32 y = 0; y < VGA_HEIGHT - 1; y++) {
-            for (u32 x = 0; x < VGA_WIDTH; x++) {
-                VGA[y * VGA_WIDTH + x] = VGA[(y + 1) * VGA_WIDTH + x];
-            }
-        }
-        for (u32 x = 0; x < VGA_WIDTH; x++) {
-            VGA[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = 0;
-        }
+    if (cursor_row == vga_height - 1) {
+        vga_shift_up();
     } else {
         cursor_row++;
     }
@@ -95,7 +88,7 @@ void kprint_char(char c) {
     } else {
         vga_putch_at(c, cursor_row, cursor_column, 0x07);
         cursor_column++;
-        if (cursor_column >= VGA_WIDTH) {
+        if (cursor_column >= vga_width) {
             kprint_next_line();
         }
     }
@@ -142,7 +135,7 @@ void vkprintf(const char *fmt, va_list args) {
                 0x07
             );
             cursor_column++;
-            if (cursor_column >= VGA_WIDTH) {
+            if (cursor_column >= vga_width) {
                 kprint_next_line();
             }
         }

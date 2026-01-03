@@ -57,6 +57,7 @@ struct proc {
     u32 parent_idx;
     u32 waiting_on;
     u32 kernel_sp;
+    u32 kernel_bp;
     u32 brk;
     // Holds the exit code of the last "wait"ed process when this process is still alive;
     // holds its own exit code once it exits.
