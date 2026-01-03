@@ -8,7 +8,7 @@ struct graphics_mode graphics_mode = {};
 struct graphics_mode *graphics_mode_high = (struct graphics_mode *) ((u32)(&graphics_mode) + HIGHER_HALF_BASE);
 
 u8 vga_font[] = {
-#embed "assets/VGA-8x16.font"
+#embed "assets/BigRoman-8x16.font"
 };
 #define VGA_FONT_CHAR_W 8
 #define VGA_FONT_CHAR_H 16
@@ -69,7 +69,7 @@ void vga_shift_up() {
 
         u8 *fb = (u8 *) VGA_GRAPHICS_FB;
 
-        /* Move framebuffer up by one text row */
+        // Move framebuffer up by one text row
         u32 move_bytes = (graphics_mode_high->height - char_rows_px) * graphics_mode_high->pitch;
         memmove(
             fb,
