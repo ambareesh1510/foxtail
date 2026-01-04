@@ -110,21 +110,18 @@ void sys_read(struct syscall_registers *s) {
     }
     char *buf = (char *) s->ecx;
     if (status == FD_STDIN) {
-        if (!input_buffer_nonempty) {
+        if (tty_data.read_ptr == tty_data.write_ptr) {
             curr_proc->status = WAITING_ON_STDIN;
             __asm__ volatile ("int $0x20" : : : "memory");
         }
         u32 target = s->edx;
         u32 count = 0;
         for (; count < target; count++) {
-            if (!input_buffer_nonempty) {
+            if (tty_data.read_ptr == tty_data.write_ptr) {
                 break;
             }
-            buf[count] = input_buffer[input_buffer_read_ptr];
-            input_buffer_read_ptr = (input_buffer_read_ptr + 1) % INPUT_BUFFER_LEN;
-            if (input_buffer_read_ptr == input_buffer_write_ptr) {
-                input_buffer_nonempty = false;
-            }
+            buf[count] = tty_data.input_buffer[tty_data.read_ptr];
+            tty_data.read_ptr = (tty_data.read_ptr + 1) % INPUT_BUFFER_LEN;
         }
         s->eax = count;
         return;
@@ -510,6 +507,15 @@ void sys_ftype(struct syscall_registers *s) {
         return;
     }
     struct proc *curr_proc = get_current_proc();
+    enum fd_status status = curr_proc->fds[s->ebx].status;
+    if (status == FD_STDIN || status == FD_STDOUT || status == FD_STDERR) {
+        s->eax = SYS_FTYPE_TTY;
+        return;
+    }
+    if (status == FD_UNMAPPED || status == FD_PIPE) {
+        s->eax = SYS_FTYPE_BAD_FD;
+        return;
+    }
     enum filetype ft = curr_proc->fds[s->ebx].data.file->type;
     if (ft == FT_FILE) {
         s->eax = SYS_FTYPE_FILE;
@@ -521,8 +527,7 @@ void sys_ftype(struct syscall_registers *s) {
         s->eax = SYS_FTYPE_SYMLINK;
         return;
     } else {
-        s->eax = SYS_FTYPE_BAD_FD;
-        return;
+        panic("Unreachable: unknown fd type\n");
     }
 }
 
@@ -881,6 +886,21 @@ void sys_pipe(struct syscall_registers *s) {
     return;
 }
 
+void sys_set_tty_mode(struct syscall_registers *s) {
+    if (s->ebx >= NUM_TTY_MODES) {
+        s->eax = -1;
+        return;
+    }
+    tty_data.mode = s->ebx;
+    s->eax = 0;
+    return;
+}
+
+void sys_get_tty_mode(struct syscall_registers *s) {
+    s->eax = tty_data.mode;
+    return;
+}
+
 void syscall_interrupt_handler_inner(struct syscall_registers *s) {
     // kprintf("Syscall with eax = %x, ebx = %x, ecx = %x, edx = %x\n", s->eax, s->ebx, s->ecx, s->edx);
     switch (s->eax) {
@@ -952,6 +972,12 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
             break;
         case SYS_PIPE:
             sys_pipe(s);
+            break;
+        case SYS_SET_TTY_MODE:
+            sys_set_tty_mode(s);
+            break;
+        case SYS_GET_TTY_MODE:
+            sys_set_tty_mode(s);
             break;
         default:
             kprintf("Invalid syscall code: %d\n", s->eax);

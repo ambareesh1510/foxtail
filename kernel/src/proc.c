@@ -61,7 +61,7 @@ void scheduler() {
                 return;
             }
         } else if (status == WAITING_ON_STDIN) {
-            if (input_buffer_nonempty) {
+            if (tty_data.read_ptr != tty_data.write_ptr) {
                 ptable[i].status = RUNNABLE;
                 scheduler_proc_index = i;
                 return;

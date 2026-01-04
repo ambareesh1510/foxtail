@@ -364,20 +364,6 @@ char kbd_shift_US [128] =
     0,  /* All other keys are undefined */
 };
 
-
-// TODO: change this to work like pipes
-char input_staging_buffer[INPUT_BUFFER_LEN] = {0};
-u32 input_staging_buffer_write_ptr = 0;
-
-char input_buffer[INPUT_BUFFER_LEN] = {0};
-u32 input_buffer_write_ptr = 0;
-u32 input_buffer_read_ptr = 0;
-
-bool input_buffer_nonempty = false;
-
-bool left_shift = false;
-bool right_shift = false;
-
 __attribute__ ((naked))
 void keyboard_interrupt_handler() {
     __asm__ volatile (
@@ -403,50 +389,76 @@ void keyboard_interrupt_handler() {
     );
 }
 
+// TODO: change this to work like pipes
+
+struct tty_data tty_data = {
+    .mode = TTY_MODE_COOKED,
+    // If write_ptr == read_ptr, buf is empty
+    .read_ptr = 0,
+    .write_ptr = 0,
+    .internal_write_ptr = 0,
+    .left_shift = false,
+    .right_shift = false,
+};
+
 void keyboard_interrupt_handler_inner() {
     u8 scancode;
     if (inb(0x64) & 1) {
         scancode = inb(0x60);
-
-        kb_char = scancode;
-        if (scancode == 0x2A) {
-            left_shift = true;
-        } else if (scancode == 0x36) {
-            right_shift = true;
-        } else if (scancode == 0xAA) {
-            left_shift = false;
-        } else if (scancode == 0xB6) {
-            right_shift = false;
-        }
-        if (scancode < 128 && kbd_US[scancode] != 0) {
-            char c;
-            if (left_shift || right_shift) {
-                c = kbd_shift_US[scancode];
-            } else {
-                c = kbd_US[scancode];
-            };
-            bool valid = (c != 0);
-            if (!valid) {
-                goto keyboard_handler_end;
+        
+        if (tty_data.mode == TTY_MODE_SCANCODE) {
+            tty_data.input_buffer[tty_data.internal_write_ptr] = scancode;
+            tty_data.internal_write_ptr = (tty_data.internal_write_ptr + 1) % INPUT_BUFFER_LEN;
+            tty_data.write_ptr = tty_data.internal_write_ptr;
+            if ((tty_data.internal_write_ptr + 1) % INPUT_BUFFER_LEN == tty_data.read_ptr % INPUT_BUFFER_LEN) {
+                // Buffer is full; overwrite the oldest data
+                tty_data.read_ptr = (tty_data.read_ptr + 1) % INPUT_BUFFER_LEN;
             }
-            if (c != '\b') {
-                kprint_char(c);
+        } else {
+            if (scancode == 0x2A) {
+                tty_data.left_shift = true;
+            } else if (scancode == 0x36) {
+                tty_data.right_shift = true;
+            } else if (scancode == 0xAA) {
+                tty_data.left_shift = false;
+            } else if (scancode == 0xB6) {
+                tty_data.right_shift = false;
             }
-            input_staging_buffer[input_staging_buffer_write_ptr] = c;
-            input_staging_buffer_write_ptr = min(input_staging_buffer_write_ptr + 1, INPUT_BUFFER_LEN - 1);
-            if (c == '\n') {
-                // Copy to input buffer
-                for (u32 i = 0; i < input_staging_buffer_write_ptr; i++) {
-                    input_buffer[input_buffer_write_ptr] = input_staging_buffer[i];
-                    input_buffer_write_ptr = (input_buffer_write_ptr + 1) % INPUT_BUFFER_LEN;
+            if (scancode < 128 && kbd_US[scancode] != 0) {
+                char c;
+                if (tty_data.left_shift || tty_data.right_shift) {
+                    c = kbd_shift_US[scancode];
+                } else {
+                    c = kbd_US[scancode];
+                };
+                bool valid = (c != 0);
+                if (!valid) {
+                    goto keyboard_handler_end;
                 }
-                input_staging_buffer_write_ptr = 0;
-                input_buffer_nonempty = true;
-            } else if (c == '\b') {
-                input_staging_buffer_write_ptr--;
-                if (input_staging_buffer_write_ptr > 0) {
-                    kprint_char(c);
-                    input_staging_buffer_write_ptr--;
+                // if (c == '\b' && tty_data.mode == TTY_MODE_COOKED) {
+                //     if (tty_data.read_ptr != tty_data.internal_write_ptr) {
+                //         kprint_char(c);
+                //     }
+                //     goto keyboard_handler_end;
+                // }
+                // if (tty_data.mode == TTY_MODE_COOKED) {
+                //     kprint_char(c);
+                // }
+                if (tty_data.mode == TTY_MODE_COOKED) {
+                    if (c == '\b') {
+                        if (tty_data.read_ptr != tty_data.internal_write_ptr) {
+                            kprint_char(c);
+                            tty_data.internal_write_ptr = (tty_data.internal_write_ptr - 1) % INPUT_BUFFER_LEN;
+                        }
+                        goto keyboard_handler_end;
+                    } else {
+                        kprint_char(c);
+                    }
+                }
+                tty_data.input_buffer[tty_data.internal_write_ptr] = c;
+                tty_data.internal_write_ptr = (tty_data.internal_write_ptr + 1) % INPUT_BUFFER_LEN;
+                if (tty_data.mode == TTY_MODE_RAW || c == '\n') {
+                    tty_data.write_ptr = tty_data.internal_write_ptr;
                 }
             }
         }

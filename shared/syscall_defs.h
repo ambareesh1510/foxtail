@@ -25,6 +25,8 @@ enum syscall_code {
     SYS_LINK,
     SYS_HARDEN,
     SYS_PIPE,
+    SYS_SET_TTY_MODE,
+    SYS_GET_TTY_MODE,
 };
 
 #define SYS_WRITE_SUCCESS 0
@@ -224,6 +226,7 @@ static inline int set_ptr(unsigned int fd, unsigned int ptr) {
 #define SYS_FTYPE_FILE 1
 #define SYS_FTYPE_DIR 2
 #define SYS_FTYPE_SYMLINK 3
+#define SYS_FTYPE_TTY 4
 #define SYS_FTYPE_BAD_FD -1
 
 static inline int ftype(unsigned int fd) {
@@ -352,6 +355,35 @@ static inline int pipe(struct pipe *pipe) {
         "int $0x80"
         : "=a"(ret)
         : "a"(SYS_PIPE), "b"(pipe)
+        : "memory"
+    );
+    return ret; 
+}
+
+enum tty_mode {
+    TTY_MODE_SCANCODE,
+    TTY_MODE_RAW,
+    TTY_MODE_COOKED,
+    NUM_TTY_MODES,
+};
+
+static inline int set_tty_mode(enum tty_mode mode) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_SET_TTY_MODE), "b"(mode)
+        : "memory"
+    );
+    return ret; 
+}
+
+static inline int get_tty_mode() {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_GET_TTY_MODE)
         : "memory"
     );
     return ret; 
