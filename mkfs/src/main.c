@@ -40,7 +40,6 @@ size_t process_file(
     size_t read_size = 0;
     // TODO: Test if this while loop condition actually works
     while ((read_size = fread(buf, 1, BLOCK_SIZE, f)) != 0) {
-        printf("[LOG] add block %d\n", (int) inode_block_idx);
         if (inode_block_idx >= NDIRECT + NINDIRECT * (BLOCK_SIZE / sizeof(u32))) {
             break;
         }

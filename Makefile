@@ -107,6 +107,7 @@ fs: user
 	mkdir -p $(MKFS_FS_IN_DIR)/bin
 	cp -r $(MKFS_FS_DIR)/* $(MKFS_FS_IN_DIR)
 	cp -r $(USER_EXE_DIR)/* $(MKFS_FS_IN_DIR)/bin
+	sh ./pre_mkfs.sh
 	mkdir -p $(MKFS_BIN_DIR)
 	$(CC) -std=c23 -I$(KERNEL_INCLUDE_DIR) $(MKFS_SRC_DIR)/main.c -o $(MKFS_BIN_DIR)/mkfs -D_DEFAULT_SOURCE
 	$(MKFS_BIN_DIR)/mkfs $(MKFS_FS_IN_DIR) $(MKFS_FS_OUT_FILE)
