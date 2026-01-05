@@ -10,15 +10,8 @@ char fs_orig[FS_SIZE] = {
 #embed "fs.bin"
 };
 
-char *fs;
-char *free_block_bitmap;
-struct inode *inodes;
-void fs_init() {
-    fs = (char *) FS_ADDR;
-    // fs = fs_orig + HIGHER_HALF_BASE;
-    free_block_bitmap = fs;
-    inodes = (struct inode *) (fs + NUM_BITMAP_BLOCKS * BLOCK_SIZE);
-}
+char *free_block_bitmap = FS;
+struct inode *inodes = (struct inode *) (FS + NUM_BITMAP_BLOCKS * BLOCK_SIZE);
 
 i32 alloc_block() {
     for (u32 i = 0; i < NUM_BLOCKS; i++) {
@@ -234,9 +227,9 @@ u32 fs_move_bytes(struct inode *inode, u32 offset, u32 size, char *buf, bool is_
     );
     u32 first_block_index = get_block_from_inode_offset(inode, offset);
     if (is_read) {
-        memcpy(buf,  fs + first_block_index * BLOCK_SIZE + offset % BLOCK_SIZE, first_block_move_size);
+        memcpy(buf,  FS + first_block_index * BLOCK_SIZE + offset % BLOCK_SIZE, first_block_move_size);
     } else {
-        memcpy(fs + first_block_index * BLOCK_SIZE + offset % BLOCK_SIZE, buf, first_block_move_size);
+        memcpy(FS + first_block_index * BLOCK_SIZE + offset % BLOCK_SIZE, buf, first_block_move_size);
     }
     size -= first_block_move_size;
     offset += first_block_move_size;
@@ -254,12 +247,12 @@ u32 fs_move_bytes(struct inode *inode, u32 offset, u32 size, char *buf, bool is_
         if (is_read) {
             memcpy(
                 buf + buf_offset,
-                fs + block_index * BLOCK_SIZE,
+                FS + block_index * BLOCK_SIZE,
                 block_move_size
             );
         } else {
             memcpy(
-                fs + block_index * BLOCK_SIZE,
+                FS + block_index * BLOCK_SIZE,
                 buf + buf_offset,
                 block_move_size
             );

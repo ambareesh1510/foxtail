@@ -40,6 +40,7 @@ kernel_main(void) {
                     curr_addr < PAGE_ROUND_DOWN(entry->base_addr_low) + entry->length_low;
                     curr_addr += PGSIZE
                 ) {
+                    // TODO: instead of hardcoding this, use elf info from multiboot header
                     if (curr_addr < 0x600000) continue;
                     u32 entry = (curr_addr / PGSIZE) / 32;
                     u32 offset = (curr_addr / PGSIZE) % 32;
@@ -120,8 +121,6 @@ void higher_half_entry() {
     
     vga_init();
     vga_clear();
-
-    fs_init();
 
     kprintf("Got %d free pages\n", *free_pages_high);
 

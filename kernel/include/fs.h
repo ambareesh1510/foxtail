@@ -4,11 +4,8 @@
 #include "fs_defs.h"
 
 #define FS_SIZE (NUM_BLOCKS * BLOCK_SIZE)
-#define FS_ADDR 0xD0000000
 extern char fs_orig[FS_SIZE];
-extern char *fs;
-
-void fs_init();
+#define FS ((char *) 0xD0000000)
 
 struct inode *alloc_inode();
 void free_inode(struct inode *inode);

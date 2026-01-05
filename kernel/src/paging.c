@@ -42,7 +42,7 @@ void paging_setup(u32 *kernel_pgdir, u32 *kernel_id_pgtbl) {
           addr += PGSIZE;
       }
 
-      kernel_pgdir[((u32) FS_ADDR >> 22) + i] = (new_page_phys_addr & 0xfffff000) | 0x3;
+      kernel_pgdir[((u32) FS >> 22) + i] = (new_page_phys_addr & 0xfffff000) | 0x3;
   }
 
   if (graphics_data.type == VGA_GRAPHICS_MODE) {
