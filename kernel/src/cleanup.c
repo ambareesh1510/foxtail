@@ -12,6 +12,7 @@ u32 cleanup_temp_pgdir[PGDIR_LEN];
 
 void cleanup_proc(struct proc *proc) {
     // Release all pages.
+    u32 pgs = 0, pgtbls = 0;
     
     // Map cr3, then copy it to temp.
     kernel_pgtbl[PGDIR_LEN - 1] = proc->cr3 | 0x3;
@@ -31,10 +32,13 @@ void cleanup_proc(struct proc *proc) {
                 continue;
             }
             free_page(temp_page_ptr[pgtbl_entry_idx] / PGSIZE);
+            pgs += 1;
         }
         free_page(cleanup_temp_pgdir[pgdir_entry_idx] / PGSIZE);
+        pgtbls += 1;
     }
     free_page(proc->cr3);
+    // kprintf("Freed %d pgs and %d pgtbls\n", pgs, pgtbls);
 
     for (u32 i = 0; i < MAX_FDS; i++) {
         enum fd_status status = proc->fds[i].status;

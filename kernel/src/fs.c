@@ -2,13 +2,23 @@
 #include "fs.h"
 #include "kprintf.h"
 #include "kstring.h"
+#include "paging.h"
 
-char fs[NUM_BLOCKS * BLOCK_SIZE] = {
+__attribute__((aligned(4096))) 
+__attribute__ ((section(".boot.data")))
+char fs_orig[FS_SIZE] = {
 #embed "fs.bin"
 };
 
-char *free_block_bitmap = fs;
-struct inode *inodes = (struct inode *) (fs + NUM_BITMAP_BLOCKS * BLOCK_SIZE);
+char *fs;
+char *free_block_bitmap;
+struct inode *inodes;
+void fs_init() {
+    fs = (char *) FS_ADDR;
+    // fs = fs_orig + HIGHER_HALF_BASE;
+    free_block_bitmap = fs;
+    inodes = (struct inode *) (fs + NUM_BITMAP_BLOCKS * BLOCK_SIZE);
+}
 
 i32 alloc_block() {
     for (u32 i = 0; i < NUM_BLOCKS; i++) {

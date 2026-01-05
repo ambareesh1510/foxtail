@@ -5,7 +5,7 @@
 #include "paging.h"
 
 #define VGA ((volatile u16 *) (0xB8000 + HIGHER_HALF_BASE))
-#define VGA_GRAPHICS_FB ((volatile u8 *) (0xD0000000))
+#define VGA_GRAPHICS_FB ((volatile u8 *) (0xE0000000))
 
 extern u32 vga_width;
 extern u32 vga_height;

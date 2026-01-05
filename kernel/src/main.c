@@ -19,6 +19,8 @@ void higher_half_entry();
 __attribute__ ((section(".boot.data")))
 u32 free_pages = 0;
 
+u32 *free_pages_high = (u32 *) ((char *) &free_pages + HIGHER_HALF_BASE);
+
 void 
 __attribute__ ((section(".boot.text")))
 kernel_main(void) {
@@ -38,7 +40,7 @@ kernel_main(void) {
                     curr_addr < PAGE_ROUND_DOWN(entry->base_addr_low) + entry->length_low;
                     curr_addr += PGSIZE
                 ) {
-                    if (curr_addr < 0x400000) continue;
+                    if (curr_addr < 0x600000) continue;
                     u32 entry = (curr_addr / PGSIZE) / 32;
                     u32 offset = (curr_addr / PGSIZE) % 32;
                     page_free_map[entry] |= 1 << offset;
@@ -118,6 +120,10 @@ void higher_half_entry() {
     
     vga_init();
     vga_clear();
+
+    fs_init();
+
+    kprintf("Got %d free pages\n", *free_pages_high);
 
     // Keyboard setup
     // Disable PS/2 devices

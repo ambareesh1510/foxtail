@@ -5,9 +5,9 @@
 
 void _start(int argc, char **argv) {
     char *dir;
-    for (int i = 0; i < argc; i++) {
-        printf("ls: argv[%d] = %s, addr=%x\n", i, argv[i], argv[i]);
-    }
+    // for (int i = 0; i < argc; i++) {
+    //     printf("ls: argv[%d] = %s, addr=%x\n", i, argv[i], argv[i]);
+    // }
     if (argc == 1) {
         dir = ".";
     } else if (argc == 2) {
@@ -21,7 +21,7 @@ void _start(int argc, char **argv) {
         puts("Couldn't find directory\n");
         exit(1);
     }
-    printf("Cd success to %s\n", dir);
+    // printf("Cd success to %s\n", dir);
     int cwd_fd = open(".", 0);
     if (cwd_fd < 0) {
         puts("open failed\n");

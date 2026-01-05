@@ -129,9 +129,6 @@ int parse_args(char *buf, char *argv[]) {
 }
 
 int process_cmd(char *buf) {
-    puts("Processing command: ");
-    puts(buf);
-    puts("\n");
     // Check if cd command
     if (is_prefix(buf, "cd ")) {
         char *dir = buf + 3;

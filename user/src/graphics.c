@@ -14,7 +14,7 @@ void _start() {
     }
     set_tty_mode(TTY_MODE_RAW);
     unsigned int w = 1000, h = 1000;
-    unsigned int *pixels = malloc(h * w * sizeof(unsigned int));
+   unsigned int *pixels = malloc(h * w * sizeof(unsigned int));
     for (unsigned int y = 0; y < h; y++) {
         for (unsigned int x = 0; x < w; x++) {
             pixels[y * w + x] = ((x * 256 / w) << 8) + (y * 256 / h);
@@ -33,5 +33,6 @@ void _start() {
 cleanup:
     set_tty_mode(TTY_MODE_COOKED);
     set_graphics_mode(false);
+    printf("pixels addr=%x\n", pixels);
     exit(0);
 }

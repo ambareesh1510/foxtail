@@ -116,8 +116,11 @@ void page_fault_handler_inner(struct fault_frame_with_error_code *f) {
     );
     if ((f->error_code & 0x4) || (fault_addr < HIGHER_HALF_BASE)) {
         struct proc *curr = get_current_proc();
-        cleanup_proc(curr);
         kprintf("Killed process `%s` (PID %d): Page Fault at address 0x%x (eip=%x)\n", curr->name, curr->pid, fault_addr, f->ip);
+        if (curr->pid == 0) {
+            panic("killed idle !!\n");
+        }
+        cleanup_proc(curr);
         __asm__ volatile("int $0x20");
     } else {
         panic(

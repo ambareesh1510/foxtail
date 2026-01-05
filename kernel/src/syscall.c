@@ -163,21 +163,25 @@ void sys_read(struct syscall_registers *s) {
 // Returns eax = new pid on success.
 void sys_spawn_proc(struct syscall_registers *s) {
     if (!is_valid_user_addr(s->ebx) || !is_valid_user_addr(s->edx)) {
+        kprint("invlaid user addr\n");
         s->eax = -1;
         return;
     }
     struct inode *prog = get_inode_by_path(get_current_proc()->cwd, (char *) s->ebx);
     if (prog == 0) {
+        kprint("no inode\n");
         s->eax = -1;
         return;
     }
     prog = follow_symlink(prog);
     if (prog->type != FT_FILE) {
+        kprint("not file\n");
         s->eax = -1;
         return;
     }
     struct proc *new_proc = exec_helper(prog, s->ecx, (char **) s->edx, s->esi, (struct spawn_custom_command *) s->edi);
     if (new_proc == 0) {
+        kprint("exec fail\n");
         s->eax = -1;
     } else {
         struct proc *curr_proc = get_current_proc();
@@ -888,12 +892,10 @@ void sys_pipe(struct syscall_registers *s) {
 
 void sys_set_tty_mode(struct syscall_registers *s) {
     if (s->ebx >= NUM_TTY_MODES) {
-        kprint("tty change fail\n");
         s->eax = -1;
         return;
     }
     tty_data.mode = s->ebx;
-    kprintf("tty changed to %d\n", tty_data.mode);
     s->eax = 0;
     return;
 }

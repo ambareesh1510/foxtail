@@ -68,7 +68,7 @@ $(ISO): iso_dir
 	grub-mkrescue -o $(ISO) $(ISO_DIR) -d /usr/lib/grub/i386-pc
 
 run: $(ISO)
-	qemu-system-i386 -cdrom $(ISO) -m 512M -d int,cpu_reset --enable-kvm -no-reboot -no-shutdown
+	qemu-system-i386 -cdrom $(ISO) -m 1024M -d int,cpu_reset --enable-kvm -no-reboot -no-shutdown
 
 gdb: $(KERNEL)
 	qemu-system-i386 -cdrom $(ISO) -m 1024M -d int,cpu_reset --enable-kvm -no-reboot -no-shutdown -s -S
