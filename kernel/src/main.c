@@ -41,7 +41,7 @@ kernel_main(void) {
                     curr_addr += PGSIZE
                 ) {
                     // TODO: instead of hardcoding this, use elf info from multiboot header
-                    if (curr_addr < 0x600000) continue;
+                    if (curr_addr < 0x600000 + 0x800000) continue;
                     u32 entry = (curr_addr / PGSIZE) / 32;
                     u32 offset = (curr_addr / PGSIZE) % 32;
                     page_free_map[entry] |= 1 << offset;

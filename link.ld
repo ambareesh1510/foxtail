@@ -11,6 +11,11 @@ SECTIONS
         *(.boot.text*)
         *(.boot.data*)
     }
+    . = 0x00400000;
+    .fs ALIGN(4096) : {
+        *(.fs.text*)
+        *(.fs.data*)
+    }
     . = 0xC0200000;
     .text ALIGN(16) : AT(ADDR(.text) - 0xC0000000) {
         *(.text*)

@@ -5,7 +5,7 @@
 #include "paging.h"
 
 __attribute__((aligned(4096))) 
-__attribute__ ((section(".boot.data")))
+__attribute__ ((section(".fs.data")))
 char fs_orig[FS_SIZE] = {
 #embed "fs.bin"
 };
@@ -45,13 +45,31 @@ struct inode *alloc_inode() {
 void free_inode(struct inode *inode) {
     if (inode->type == FT_FILE) {
         u32 num_blocks = (inode->data.file_data.size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        for (u32 i = 0; i < num_blocks; i++) {
-            free_block(inode->data.file_data.blocks[i]);
+        bool indirect_used[NINDIRECT] = {0};
+        for (u32 blk = 0; blk < num_blocks; blk++) {
+            if (blk < NDIRECT) {
+                free_block(inode->data.file_data.direct_blocks[blk]);
+            } else {
+                u32 indirect_idx = (blk - NDIRECT) / PTRS_PER_INDIRECT;
+                u32 indirect_offset = (blk - NDIRECT) % PTRS_PER_INDIRECT;
+                u32 indirect_block = inode->data.file_data.indirect_blocks[indirect_idx];
+                u32 *indirect_block_pointer = (u32 *)(FS + indirect_block * BLOCK_SIZE);
+
+                free_block(indirect_block_pointer[indirect_offset]);
+
+                indirect_used[indirect_idx] = true;
+            }
+        }
+
+        for (u32 i = 0; i < NINDIRECT; i++) {
+            if (indirect_used[i]) {
+                free_block(inode->data.file_data.indirect_blocks[i]);
+            }
         }
     }
     inode->type = FT_UNALLOCATED;
-    return;
 }
+
 
 void acquire_inode(struct inode *inode) {
     inode->num_refs++;
@@ -82,7 +100,7 @@ struct inode *follow_symlink(struct inode *link) {
 
 
 struct inode *get_inode_at_idx(u32 idx) {
-    return &inodes[idx];
+    return inodes + idx;
 }
 
 u32 get_index_from_inode(struct inode *inode) {
@@ -183,9 +201,14 @@ u32 get_block_from_inode_offset(
 ) {
     u32 linear_block = offset / BLOCK_SIZE;
     if (linear_block < NDIRECT) {
-        return inode->data.file_data.blocks[linear_block];
+        return inode->data.file_data.direct_blocks[linear_block];
+    } else if (linear_block < NDIRECT + NINDIRECT * PTRS_PER_INDIRECT) {
+        u32 indirect_idx = (linear_block - NDIRECT) / PTRS_PER_INDIRECT;
+        u32 indirect_offset = (linear_block - NDIRECT) % PTRS_PER_INDIRECT;
+        u32 indirect_block = inode->data.file_data.indirect_blocks[indirect_idx];
+        u32 *indirect_block_ptr = (u32 *) (FS + indirect_block * BLOCK_SIZE);
+        return indirect_block_ptr[indirect_offset];
     }
-    // TODO: extend this when adding indirect blocks
     return 0;
 }
 
@@ -204,11 +227,33 @@ u32 fs_move_bytes(struct inode *inode, u32 offset, u32 size, char *buf, bool is_
             if (inode->data.file_data.size > FILE_MAX_SIZE - BLOCK_SIZE) {
                 // All blocks are already allocated; continue.
             } else {
-                u32 unallocated_block = (inode->data.file_data.size + BLOCK_SIZE - 1) / BLOCK_SIZE + 1;
+                /*
+                u32 unallocated_block = (inode->data.file_data.size + BLOCK_SIZE - 1) / BLOCK_SIZE;
                 u32 final_block = (end + BLOCK_SIZE - 1) / BLOCK_SIZE;
                 while (unallocated_block < final_block) {
-                    inode->data.file_data.blocks[unallocated_block] = alloc_block();
+                    inode->data.file_data.direct_blocks[unallocated_block] = alloc_block();
                     unallocated_block++;
+                }
+                inode->data.file_data.size = end;
+                */
+                u32 first_new_block = (inode->data.file_data.size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+                u32 final_block = (end + BLOCK_SIZE - 1) / BLOCK_SIZE;
+                for (u32 blk = first_new_block; blk < final_block; blk++) {
+                    if (blk < NDIRECT) {
+                        inode->data.file_data.direct_blocks[blk] = alloc_block();
+                    } else {
+                        u32 indirect_idx = (blk - NDIRECT) / PTRS_PER_INDIRECT;
+                        u32 indirect_offset = (blk - NDIRECT) % PTRS_PER_INDIRECT;
+
+                        if (indirect_offset == 0) {
+                            inode->data.file_data.indirect_blocks[indirect_idx] = alloc_block();
+                        }
+
+                        u32 indirect_block = inode->data.file_data.indirect_blocks[indirect_idx];
+                        u32 *indirect_block_ptr = (u32 *)(FS + indirect_block * BLOCK_SIZE);
+
+                        indirect_block_ptr[indirect_offset] = alloc_block();
+                    }
                 }
                 inode->data.file_data.size = end;
             }
@@ -285,7 +330,7 @@ void ls_entry(struct inode *entry) {
             entry->name
         );
         for (u32 block = 0; block < entry->data.file_data.size / BLOCK_SIZE + 1; block++) {
-            kprintf("  block %d\n", entry->data.file_data.blocks[block]);
+            kprintf("  block %d\n", entry->data.file_data.direct_blocks[block]);
         }
     } else {
         kprintf(

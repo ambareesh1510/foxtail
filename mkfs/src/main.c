@@ -40,8 +40,25 @@ size_t process_file(
     size_t read_size = 0;
     // TODO: Test if this while loop condition actually works
     while ((read_size = fread(buf, 1, BLOCK_SIZE, f)) != 0) {
-        if (inode_block_idx >= NDIRECT) {
+        printf("[LOG] add block %d\n", (int) inode_block_idx);
+        if (inode_block_idx >= NDIRECT + NINDIRECT * (BLOCK_SIZE / sizeof(u32))) {
             break;
+        }
+        if (inode_block_idx >= NDIRECT) {
+            // Allocate a new indirect block if needed
+            u32 indirect_idx = (inode_block_idx - NDIRECT) / PTRS_PER_INDIRECT;
+            u32 indirect_offset = (inode_block_idx - NDIRECT) % PTRS_PER_INDIRECT;
+            if (indirect_offset == 0) {
+                new_inode.data.file_data.indirect_blocks[indirect_idx] = *curr_data_block;
+                // Mark block as used
+                bitmap[(*curr_data_block) / 8] |= 1 << ((*curr_data_block) % 8);
+                (*curr_data_block)++;
+            }
+            u32 indirect_block = new_inode.data.file_data.indirect_blocks[indirect_idx];
+            u32 *indirect_block_ptr = (u32 *) (data_blocks + (indirect_block - NUM_INODE_BLOCKS - NUM_BITMAP_BLOCKS) * BLOCK_SIZE);
+            indirect_block_ptr[indirect_offset] = *curr_data_block;
+        } else {
+            new_inode.data.file_data.direct_blocks[inode_block_idx] = *curr_data_block;
         }
         memcpy(
             data_blocks + (*curr_data_block - NUM_INODE_BLOCKS - NUM_BITMAP_BLOCKS) * BLOCK_SIZE,
@@ -49,7 +66,6 @@ size_t process_file(
             BLOCK_SIZE
         );
         memset(buf, 0, BLOCK_SIZE);
-        new_inode.data.file_data.blocks[inode_block_idx] = *curr_data_block;
         inode_block_idx++;
         // Mark block as used
         bitmap[(*curr_data_block) / 8] |= 1 << ((*curr_data_block) % 8);
@@ -142,7 +158,8 @@ int main(int argc, char **argv) {
     }
     struct inode inodes[NUM_INODE_BLOCKS * (BLOCK_SIZE / sizeof(struct inode))] = {0};
     size_t curr_inode = 0;
-    char data_blocks[BLOCK_SIZE * (NUM_BLOCKS - NUM_INODE_BLOCKS)] = {0};
+    // char data_blocks[BLOCK_SIZE * (NUM_BLOCKS - NUM_INODE_BLOCKS - NUM_BITMAP_BLOCKS)] = {0};
+    char *data_blocks = calloc(BLOCK_SIZE * (NUM_BLOCKS - NUM_INODE_BLOCKS - NUM_BITMAP_BLOCKS), 1);
     size_t curr_data_block = NUM_BITMAP_BLOCKS + NUM_INODE_BLOCKS;
     // size_t curr_data_block = NUM_INODE_BLOCKS;
 

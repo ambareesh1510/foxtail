@@ -11,17 +11,24 @@ enum filetype {
     FT_DIRECTORY,
     FT_SYMLINK,
 };
-#define NDIRECT 21
-#define FILE_MAX_SIZE (NDIRECT * BLOCK_SIZE)
-#define DIR_MAX_ENTRIES (NDIRECT)
+#define NDIRECT 19
+#define NINDIRECT 2
+#define FILE_DIRECT_MAX_SIZE (NDIRECT * BLOCK_SIZE)
+#define FILE_INDIRECT_MAX_SIZE (NINDIRECT * (BLOCK_SIZE / sizeof(u32)) * BLOCK_SIZE)
+#define FILE_MAX_SIZE (FILE_DIRECT_MAX_SIZE + FILE_INDIRECT_MAX_SIZE)
+#define PTRS_PER_INDIRECT (BLOCK_SIZE / sizeof(u32))
+#define DIR_MAX_ENTRIES (NDIRECT + NINDIRECT)
 #define FILENAME_MAX_LEN 28
+// TODO: file truncate
 struct file_inode_data {
     u32 size;
-    u32 blocks[NDIRECT];
+    u32 direct_blocks[NDIRECT];
+    u32 indirect_blocks[NINDIRECT];
 };
+// TODO: indirect blocks for directories
 struct directory_inode_data {
     u32 num_entries;
-    u32 direct_files[NDIRECT];
+    u32 direct_files[NDIRECT + NINDIRECT];
     /* TODO: add indirect block
     uint32_t direct_files[NDIRECT - 1];
     uint32_t indirect_block;
@@ -55,7 +62,7 @@ _Static_assert(sizeof(struct fs_dirent) == 4, "Bad dirent size");
 #define NUM_INODE_BLOCKS 8
 
 #define BLOCK_SIZE 4096
-#define NUM_BLOCKS 128
+#define NUM_BLOCKS 2048
 
 #if NUM_BLOCKS % 8 != 0
 #error NUM_BLOCKS % 8 != 0
