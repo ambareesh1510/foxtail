@@ -49,4 +49,7 @@ void cleanup_proc(struct proc *proc) {
     proc->status = KILLED;
     proc->present = false;
     proc->exit_code = FAULT_EXIT_CODE;
+    if (proc->graphics_mode) {
+        graphics_mode_enabled = false;
+    }
 }

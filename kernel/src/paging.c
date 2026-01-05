@@ -29,11 +29,11 @@ void paging_setup(u32 *kernel_pgdir, u32 *kernel_id_pgtbl) {
   // first 10 bits are the page directory index, which is equal to 768.
   kernel_pgdir[HIGHER_HALF_BASE >> 22] = kernel_pgdir_entry;
 
-  if (graphics_mode.type == VGA_GRAPHICS_MODE) {
-      u32 framebuffer_bytes = (graphics_mode.height * graphics_mode.width * graphics_mode.depth / 8);
+  if (graphics_data.type == VGA_GRAPHICS_MODE) {
+      u32 framebuffer_bytes = (graphics_data.height * graphics_data.width * graphics_data.depth / 8);
       u32 pgtbl_alloc_size = PGSIZE * PGSIZE / sizeof(u32);
       u32 framebuffer_pgtbl_count = (framebuffer_bytes + pgtbl_alloc_size - 1) / pgtbl_alloc_size;
-      addr = PAGE_ROUND_DOWN(graphics_mode.framebuffer);
+      addr = PAGE_ROUND_DOWN(graphics_data.framebuffer);
       if (addr < 0x100000) {
           panic("Framebuffer address too low");
       }

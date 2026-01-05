@@ -11,30 +11,30 @@
 #include "syscall_defs.h"
 #include "proc.h"
 
-u32 new_pgdir[PGDIR_LEN];
-u32 old_cr3;
-struct elf_header elf_header;
-struct inode *prog;
-u32 global_argc;
-char **global_argv;
-char global_arg_buf[PGSIZE];
-u32 global_num_custom_commands;
-struct spawn_custom_command *global_commands;
+volatile u32 new_pgdir[PGDIR_LEN];
+volatile u32 old_cr3;
+volatile struct elf_header elf_header;
+volatile struct inode *prog;
+volatile u32 global_argc;
+volatile char **global_argv;
+volatile char global_arg_buf[PGSIZE];
+volatile u32 global_num_custom_commands;
+volatile struct spawn_custom_command *global_commands;
 
 struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_custom_commands, struct spawn_custom_command *commands) {
     prog = prog_ptr;
     global_argc = argc;
-    global_argv = argv;
+    global_argv = (volatile char **) argv;
     global_num_custom_commands = num_custom_commands;
     global_commands = commands;
-    fs_read_bytes(prog, 0, sizeof(elf_header), (char *) (&elf_header));
+    fs_read_bytes((struct inode *) prog, 0, sizeof(elf_header), (char *) (&elf_header));
 
     if (elf_header.magic != ELF_MAGIC) {
         kprintf("Exec %s: bad magic\n", prog->name);
         return 0;
     }
     struct proc *new_proc = alloc_proc();
-    memcpy(new_proc->name, prog->name, FILENAME_MAX_LEN);
+    memcpy(new_proc->name, (char *) prog->name, FILENAME_MAX_LEN);
 
     // Use the last entry of kernel_pgtbl as a temporary buffer.
     memset((char *) new_pgdir, 0, PGSIZE);
@@ -42,7 +42,7 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
     for (u32 i = 0; i < elf_header.phnum; i++) {
         struct program_header program_header;
         fs_read_bytes(
-            prog,
+            (struct inode *) prog,
             elf_header.phoff + i * sizeof(struct program_header),
             sizeof(program_header),
             (char *) (&program_header)
@@ -126,8 +126,9 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
     // Implement this properly at some point.
     char **argv_arr = (char **) global_arg_buf;
     char *argv_buf = (char *) global_arg_buf + global_argc * sizeof(char *);
+    // kprintf("global arg buf = %x\n", global_arg_buf);
     for (u32 i = 0; i < global_argc; i++) {
-        u32 next_len = strlen(global_argv[i]) + 1;
+        u32 next_len = strlen((char *) global_argv[i]) + 1;
         if ((u32) argv_buf + next_len > (u32) global_arg_buf + PGSIZE) {
             global_argc = i;
             break;
@@ -135,7 +136,7 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
         argv_arr[i] = (char *) (0x80000000 + (u32) argv_buf - (u32) global_arg_buf);
         strcpy(
             argv_buf,
-            global_argv[i]
+            (char *) global_argv[i]
         );
         argv_buf += next_len;
     }
@@ -158,6 +159,7 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
 
     // TODO: using sbrk_helper is not efficient (should do it before the cr3 is loaded into new_proc)
     sbrk_helper(new_proc, total_argv_len);
+    // kprintf("after sbrk for %x, new brk=%x\n", total_argv_len, new_proc->brk);
     
     __asm__ volatile (
         "mov %%cr3, %%eax\n"
@@ -183,12 +185,12 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
     for (u32 i = 0; i < elf_header.phnum; i++) {
         struct program_header program_header;
         fs_read_bytes(
-            prog,
+            (struct inode *) prog,
             elf_header.phoff + i * sizeof(struct program_header),
             sizeof(program_header),
             (char *) (&program_header)
         );
-        fs_read_bytes(prog, program_header.offset, program_header.filesz, (char *) program_header.vaddr);
+        fs_read_bytes((struct inode *) prog, program_header.offset, program_header.filesz, (char *) program_header.vaddr);
         memset((char *) (program_header.vaddr + program_header.filesz), 0, program_header.memsz - program_header.filesz);
     }
 
@@ -196,7 +198,7 @@ struct proc *exec_helper(struct inode *prog_ptr, u32 argc, char **argv, u32 num_
     if (global_argc > 0) {
         memcpy(
             (char *) 0x80000000,
-            global_arg_buf,
+            (char *) global_arg_buf,
             PGSIZE
         );
     }

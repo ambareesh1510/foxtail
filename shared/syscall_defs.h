@@ -27,6 +27,9 @@ enum syscall_code {
     SYS_PIPE,
     SYS_SET_TTY_MODE,
     SYS_GET_TTY_MODE,
+    SYS_SET_GRAPHICS_MODE,
+    SYS_GET_GRAPHICS_MODE,
+    SYS_DRAW_PIXELS,
 };
 
 #define SYS_WRITE_SUCCESS 0
@@ -384,6 +387,46 @@ static inline int get_tty_mode() {
         "int $0x80"
         : "=a"(ret)
         : "a"(SYS_GET_TTY_MODE)
+        : "memory"
+    );
+    return ret; 
+}
+
+static inline int set_graphics_mode(bool enabled) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_SET_GRAPHICS_MODE), "b"(enabled)
+        : "memory"
+    );
+    return ret; 
+}
+
+struct graphics_mode_data {
+    unsigned int height;
+    unsigned int width;
+    unsigned int depth;
+};
+
+static inline bool get_graphics_mode(struct graphics_mode_data *data) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_GET_GRAPHICS_MODE), "b"(data)
+        : "memory"
+    );
+    return ret; 
+}
+
+// Draw the given 
+static inline bool draw_pixels(unsigned int *buf, unsigned int height, unsigned int width) {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_DRAW_PIXELS), "b"(buf), "c"(height), "d"(width)
         : "memory"
     );
     return ret; 

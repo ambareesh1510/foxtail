@@ -64,6 +64,7 @@ struct proc {
     u32 exit_code;
     struct inode *cwd;
     struct fd fds[MAX_FDS];
+    bool graphics_mode;
 };
 
 #define MAX_PROCS 256

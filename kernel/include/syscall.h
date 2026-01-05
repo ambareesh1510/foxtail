@@ -21,6 +21,8 @@ struct syscall_registers {
     u32 edi, esi, ebp, esp, ebx, edx, ecx, eax;
 };
 
+extern bool graphics_mode_enabled;
+
 void syscall_interrupt_handler_inner(struct syscall_registers *s);
 void sbrk_helper(struct proc *curr_proc, i32 brk_delta);
 

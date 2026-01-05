@@ -149,3 +149,8 @@ void kprintf(const char *fmt, ...) {
     vkprintf(fmt, args);
     va_end(args);
 }
+
+void move_cursor(u32 row, u32 col) {
+    cursor_row = row;
+    cursor_column = col;
+}

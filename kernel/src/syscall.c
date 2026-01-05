@@ -888,16 +888,104 @@ void sys_pipe(struct syscall_registers *s) {
 
 void sys_set_tty_mode(struct syscall_registers *s) {
     if (s->ebx >= NUM_TTY_MODES) {
+        kprint("tty change fail\n");
         s->eax = -1;
         return;
     }
     tty_data.mode = s->ebx;
+    kprintf("tty changed to %d\n", tty_data.mode);
     s->eax = 0;
     return;
 }
 
 void sys_get_tty_mode(struct syscall_registers *s) {
     s->eax = tty_data.mode;
+    return;
+}
+
+bool graphics_mode_enabled = false;
+void sys_set_graphics_mode(struct syscall_registers *s) {
+    struct proc *curr_proc = get_current_proc();
+    bool enable_graphics = (bool) s->ebx;
+    if (graphics_data_high->type != VGA_GRAPHICS_MODE) {
+        // We are running in text mode; fail
+        s->eax = -1;
+        return;
+    }
+    if (graphics_mode_enabled) {
+        if (enable_graphics) {
+            // Can't reenable graphics mode; fail
+            s->eax = -1;
+            return;
+        } else {
+            if (curr_proc->graphics_mode) {
+                // Disable graphics mode
+                graphics_mode_enabled = false;
+                curr_proc->graphics_mode = false;
+                vga_clear();
+                move_cursor(0, 0);
+                s->eax = 0;
+                return;
+            } else {
+                // This proc doesn't own the graphics mode; fail
+                s->eax = -1;
+                return;
+            }
+        }
+    } else {
+        if (enable_graphics) {
+            // Can enable
+            curr_proc->graphics_mode = true;
+            graphics_mode_enabled = true;
+            vga_clear();
+            s->eax = 0;
+            return;
+        } else {
+            // Already disabled; fail
+            s->eax = -1;
+            return;
+        }
+    }
+}
+
+void sys_get_graphics_mode(struct syscall_registers *s) {
+    struct graphics_mode_data *data = (struct graphics_mode_data *) s->ecx;
+    if (data != 0) {
+        data->height = graphics_data_high->height;
+        data->width = graphics_data_high->width;
+        data->depth = graphics_data_high->depth;
+    }
+    if (graphics_mode_enabled) {
+        s->eax = 1;
+        return;
+    } else {
+        s->eax = 0;
+        return;
+    }
+}
+
+void sys_draw_pixels(struct syscall_registers *s) {
+    struct proc *curr_proc = get_current_proc();
+    if (!graphics_mode_enabled || !curr_proc->graphics_mode) {
+        s->eax = -1;
+        return;
+    }
+    if (!is_valid_user_addr(s->ebx)) {
+        s->eax = -1;
+        return;
+    }
+    u32 *buf = (u32 *) s->ebx;
+    u32 height = s->ecx;
+    u32 width = s->edx;
+    u32 actual_height = min(height, graphics_data_high->height);
+    u32 actual_width = min(width, graphics_data_high->width);
+    for (u32 y = 0; y < actual_height; y++) {
+        for (u32 x = 0; x < actual_width; x++) {
+            u32 color = buf[y * width + x];
+            vga_draw_pixel(color, x, y);
+        }
+    }
+    s->eax = 0;
     return;
 }
 
@@ -977,7 +1065,16 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
             sys_set_tty_mode(s);
             break;
         case SYS_GET_TTY_MODE:
-            sys_set_tty_mode(s);
+            sys_get_tty_mode(s);
+            break;
+        case SYS_SET_GRAPHICS_MODE:
+            sys_set_graphics_mode(s);
+            break;
+        case SYS_GET_GRAPHICS_MODE:
+            sys_get_graphics_mode(s);
+            break;
+        case SYS_DRAW_PIXELS:
+            sys_draw_pixels(s);
             break;
         default:
             kprintf("Invalid syscall code: %d\n", s->eax);

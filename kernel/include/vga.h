@@ -10,7 +10,7 @@
 extern u32 vga_width;
 extern u32 vga_height;
 
-struct graphics_mode {
+struct graphics_data {
     enum {
         VGA_TEXT_MODE,
         VGA_GRAPHICS_MODE
@@ -23,8 +23,8 @@ struct graphics_mode {
 };
 
 __attribute__ ((section(".boot.data")))
-extern struct graphics_mode graphics_mode;
-extern struct graphics_mode *graphics_mode_high;
+extern struct graphics_data graphics_data;
+extern struct graphics_data *graphics_data_high;
 
 void vga_init();
 
@@ -33,5 +33,6 @@ void vga_putch_at(char c, u32 row, u32 col, u8 attr);
 void vga_shift_up();
 
 void vga_clear();
+void vga_draw_pixel(u32 color, u32 x, u32 y);
 
 #endif /* VGA_H */

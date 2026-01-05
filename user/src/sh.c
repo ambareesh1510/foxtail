@@ -129,6 +129,9 @@ int parse_args(char *buf, char *argv[]) {
 }
 
 int process_cmd(char *buf) {
+    puts("Processing command: ");
+    puts(buf);
+    puts("\n");
     // Check if cd command
     if (is_prefix(buf, "cd ")) {
         char *dir = buf + 3;
@@ -228,6 +231,11 @@ int process_cmd(char *buf) {
             return -1;
         }
 
+        // puts("Spawning with:\n");
+        // for (int i = 0; i < argc; i++) {
+        //     printf("argv[%d] = %s\n", i, argv[i]);
+        // }
+        //
         int res = spawn_with_path(env_path, argv[0], argc, argv, 0, 0);
         if (res < 0) {
             puts("Unable to spawn process ");
