@@ -17,6 +17,7 @@ enum proc_status {
     WAITING_ON_PID,
     WAITING_ON_STDIN,
     WAITING_ON_PIPE,
+    WAITING_ON_TICKS,
     KILLED,
 };
 

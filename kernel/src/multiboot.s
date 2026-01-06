@@ -15,9 +15,8 @@
     .long MULTIBOOT_MAGIC
     .long MULTIBOOT_FLAGS
     .long MULTIBOOT_CHECKSUM
-    .fill 5, 4, 0
+    .fill 6, 4, 0
     // .times 5 .long 0
-    .long MUTLIBO
     .long MULTIBOOT_GRAPHICS_MODE_TYPE
     .long MULTIBOOT_GRAPHICS_WIDTH
     .long MULTIBOOT_GRAPHICS_HEIGHT

@@ -73,6 +73,13 @@ void scheduler() {
                 scheduler_proc_index = i;
                 return;
             }
+        } else if (status == WAITING_ON_TICKS) {
+            u32 target_ticks = ptable[i].waiting_on;
+            if (ticks >= target_ticks) {
+                ptable[i].status = RUNNABLE;
+                scheduler_proc_index = i;
+                return;
+            }
         } else if (status == KILLED) {
             if (ptable[i].pid == sh_proc_pid) {
                 struct inode *sh_inode = get_inode_by_path(get_root_inode(), "~/bin/sh");

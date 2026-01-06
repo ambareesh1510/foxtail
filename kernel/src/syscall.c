@@ -4,6 +4,7 @@
 #include "fs.h"
 #include "fs_defs.h"
 #include "interrupt.h"
+#include "io.h"
 #include "kprintf.h"
 #include "paging.h"
 #include "pgalloc.h"
@@ -110,7 +111,7 @@ void sys_read(struct syscall_registers *s) {
     }
     char *buf = (char *) s->ecx;
     if (status == FD_STDIN) {
-        if (tty_data.read_ptr == tty_data.write_ptr) {
+        if (tty_data.read_ptr == tty_data.write_ptr && tty_data.mode != TTY_MODE_SCANCODE) {
             curr_proc->status = WAITING_ON_STDIN;
             __asm__ volatile ("int $0x20" : : : "memory");
         }
@@ -991,6 +992,15 @@ void sys_draw_pixels(struct syscall_registers *s) {
     return;
 }
 
+void sys_wait_ticks(struct syscall_registers *s) {
+    struct proc *curr_proc = get_current_proc();
+    curr_proc->status = WAITING_ON_TICKS;
+    curr_proc->waiting_on = ticks + s->ebx;
+    __asm__ volatile ("int $0x20");
+    s->eax = 0;
+    return;
+}
+
 void syscall_interrupt_handler_inner(struct syscall_registers *s) {
     // kprintf("Syscall with eax = %x, ebx = %x, ecx = %x, edx = %x\n", s->eax, s->ebx, s->ecx, s->edx);
     switch (s->eax) {
@@ -1078,8 +1088,11 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
         case SYS_DRAW_PIXELS:
             sys_draw_pixels(s);
             break;
+        case SYS_WAIT_TICKS:
+            sys_wait_ticks(s);
+            break;
         default:
-            kprintf("Invalid syscall code: %d\n", s->eax);
+            kprintf("Invalid syscall code: %x\n", s->eax);
             break;
     }
 }

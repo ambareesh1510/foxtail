@@ -1,6 +1,7 @@
 bin/
 /isodir/
 /fs/
+/mkfs/fs/sandtris
 .cache/
 kernel.elf
 os.iso

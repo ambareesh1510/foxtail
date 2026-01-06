@@ -35,7 +35,7 @@ MKFS_FS_OUT_FILE = fs.bin
 # Compiler/linker options
 CC = clang
 LD = ld.lld
-CFLAGS = -target i386-elf -std=c23 -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -Wpedantic -nostdlib -mno-sse -I $(KERNEL_INCLUDE_DIR) -I $(SHARED_INCLUDE_DIR) -g
+CFLAGS = -target i386-elf -std=c23 -m32 -ffreestanding -fno-builtin -O0 -Wall -Wextra -Wpedantic -nostdlib -mno-sse -I $(KERNEL_INCLUDE_DIR) -I $(SHARED_INCLUDE_DIR) -g
 USER_CFLAGS = -target i386-elf -std=c23 -m32 -ffreestanding -fno-builtin -O2 -Wall -Wextra -Wpedantic -nostdlib -mno-sse -I $(USER_INCLUDE_DIR) -I $(SHARED_INCLUDE_DIR)
 LDFLAGS = -m elf_i386 -nostdlib -T link.ld
 USER_LDFLAGS = -m elf_i386 -nostdlib -T user.ld --strip-all

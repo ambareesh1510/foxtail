@@ -35,9 +35,6 @@ void vga_init() {
 }
 
 void vga_putch_at(char c, u32 row, u32 col, u8 attr) {
-    if (graphics_mode_enabled) {
-        return;
-    }
     if (graphics_data_high->type == VGA_TEXT_MODE) {
         unsigned int idx = row * vga_width + col;
         VGA[idx] = ((u16) attr << 8) | (u8) c;
@@ -149,6 +146,7 @@ void vga_draw_pixel(u32 color, u32 x, u32 y) {
     volatile u8 *pixel_ptr = VGA_GRAPHICS_FB + y * graphics_data_high->pitch + x * graphics_data_high->depth / 8;
     if (graphics_data_high->depth == 32) {
         write_color32(color, pixel_ptr);
+        // write_color32(0xFFFF0000, pixel_ptr);
     } else if (graphics_data_high->depth == 24) {
         write_color24(color, pixel_ptr);
     } else if (graphics_data_high->depth == 16) {

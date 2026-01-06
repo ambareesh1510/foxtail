@@ -2,12 +2,16 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
+#include "syscall.h"
 #include "vga.h"
 #include "util.h"
 
 u32 cursor_row = 0, cursor_column = 0;
 
 void kprint_backspace() {
+    if (graphics_mode_enabled) {
+        return;
+    }
     if (cursor_column == 0) {
         if (cursor_row == 0) {
             return;
@@ -27,6 +31,9 @@ void kprint_backspace() {
 }
 
 void kprint_next_line() {
+    if (graphics_mode_enabled) {
+        return;
+    }
     cursor_column = 0;
     if (cursor_row == vga_height - 1) {
         vga_shift_up();
@@ -36,6 +43,9 @@ void kprint_next_line() {
 }
 
 void kprint_uint32_hex(u32 c, char *buf) {
+    if (graphics_mode_enabled) {
+        return;
+    }
     const char hex_digits[] = "0123456789ABCDEF";
     u32 len = 0;
     for (u32 i = 4; i < 32; i += 4) {
@@ -50,6 +60,9 @@ void kprint_uint32_hex(u32 c, char *buf) {
 }
 
 void kprint_uint32_dec(u32 value, char* buf) {
+    if (graphics_mode_enabled) {
+        return;
+    }
     if (value == 0) {
         buf[0] = '0';
         buf[1] = '\0';
@@ -81,6 +94,9 @@ void kprint_uint32_dec(u32 value, char* buf) {
 }
 
 void kprint_char(char c) {
+    if (graphics_mode_enabled) {
+        return;
+    }
     if (c == '\n') {
         kprint_next_line();
     } else if (c == '\b') {
@@ -95,6 +111,9 @@ void kprint_char(char c) {
 }
 
 void kprint(const char *str) {
+    if (graphics_mode_enabled) {
+        return;
+    }
     while (*str != 0) {
         kprint_char(*str);
         str++;
@@ -102,6 +121,9 @@ void kprint(const char *str) {
 }
 
 void vkprintf(const char *fmt, va_list args) {
+    if (graphics_mode_enabled) {
+        return;
+    }
     const char *curr = fmt;
     bool format_spec = false;
     while (*curr != 0) {
@@ -144,6 +166,9 @@ void vkprintf(const char *fmt, va_list args) {
 }
 
 void kprintf(const char *fmt, ...) {
+    if (graphics_mode_enabled) {
+        return;
+    }
     va_list args;
     va_start(args, fmt);
     vkprintf(fmt, args);

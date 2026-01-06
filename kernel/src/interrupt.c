@@ -116,11 +116,11 @@ void page_fault_handler_inner(struct fault_frame_with_error_code *f) {
     );
     if ((f->error_code & 0x4) || (fault_addr < HIGHER_HALF_BASE)) {
         struct proc *curr = get_current_proc();
+        cleanup_proc(curr);
         kprintf("Killed process `%s` (PID %d): Page Fault at address 0x%x (eip=%x)\n", curr->name, curr->pid, fault_addr, f->ip);
         if (curr->pid == 0) {
             panic("killed idle !!\n");
         }
-        cleanup_proc(curr);
         __asm__ volatile("int $0x20");
     } else {
         panic(
@@ -555,6 +555,23 @@ void pic_remap() {
     outb(PIC_SLAVE_DATA, 0xFF);
 }
 
+#define PIT_CMD  0x43
+#define PIT_CH0  0x40
+#define PIT_BASE 1193182
+
+void pit_set_frequency(u32 hz) {
+    if (hz == 0) return;
+
+    u32 divisor = PIT_BASE / hz;
+    if (divisor == 0) divisor = 1;
+    if (divisor > 0xFFFF) divisor = 0xFFFF;
+
+    outb(PIT_CMD, 0x34);               // channel 0, lo/hi, mode 2
+    outb(PIT_CH0, divisor & 0xFF);     // low byte
+    outb(PIT_CH0, (divisor >> 8) & 0xFF); // high byte
+}
+
+
 #define IDT_FLAG_INTERRUPT_GATE 0x8E
 #define IDT_FLAG_USER_INTERRUPT_GATE 0xEE
 
@@ -600,5 +617,6 @@ idt_load() {
 
     __asm__ volatile ("lidt %0" : : "m" (idt_desc));
     pic_remap();
+    pit_set_frequency(1000);
     __asm__ volatile ("sti");
 }

@@ -1,0 +1,3 @@
+[submodule "sandtris"]
+	path = sandtris
+	url = git@github.com:ambareesh1510/Sandtris-Foxtail.git
