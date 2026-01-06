@@ -50,7 +50,7 @@ void paging_setup(u32 *kernel_pgdir, u32 *kernel_id_pgtbl) {
       u32 framebuffer_pgtbl_count = (framebuffer_bytes + pgtbl_alloc_size - 1) / pgtbl_alloc_size;
       addr = PAGE_ROUND_DOWN(graphics_data.framebuffer);
       if (addr < 0x100000) {
-          panic("Framebuffer address too low");
+          __builtin_trap();
       }
       for (u32 i = 0; i < framebuffer_pgtbl_count; i++) {
           u32 new_page_phys_addr = alloc_page_low() * PGSIZE;

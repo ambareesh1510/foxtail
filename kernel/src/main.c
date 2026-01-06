@@ -65,18 +65,22 @@ kernel_main(void) {
     }
 
     if (multiboot_info->flags & (1 << 12)) {
-        // Graphics mode info found
-        graphics_data.type = VGA_GRAPHICS_MODE;
-        graphics_data.width = multiboot_info->framebuffer_width;
-        graphics_data.height = multiboot_info->framebuffer_height;
-        graphics_data.depth = multiboot_info->framebuffer_bpp;
-        graphics_data.pitch = multiboot_info->framebuffer_pitch;
-        graphics_data.framebuffer = (u32) multiboot_info->framebuffer_addr;
-        // graphics_mode.framebuffer = (u8 *) ((u32) 0xA0000);
-        // graphics_mode.framebuffer = (u8 *) ((u32) 0xA0000 + HIGHER_HALF_BASE);
-        // for (u32 i = 0; i < 2000; i++) {
-        //     graphics_mode.framebuffer[i] = 0xFF;
-        // }
+        if (multiboot_info->framebuffer_type == 0 || multiboot_info->framebuffer_type == 1) {
+            // Graphics mode info found
+            graphics_data.type = VGA_GRAPHICS_MODE;
+            graphics_data.width = multiboot_info->framebuffer_width;
+            graphics_data.height = multiboot_info->framebuffer_height;
+            graphics_data.depth = multiboot_info->framebuffer_bpp;
+            graphics_data.pitch = multiboot_info->framebuffer_pitch;
+            graphics_data.framebuffer = (u32) multiboot_info->framebuffer_addr;
+            // graphics_mode.framebuffer = (u8 *) ((u32) 0xA0000);
+            // graphics_mode.framebuffer = (u8 *) ((u32) 0xA0000 + HIGHER_HALF_BASE);
+            // for (u32 i = 0; i < 2000; i++) {
+            //     graphics_mode.framebuffer[i] = 0xFF;
+            // }
+        } else {
+            graphics_data.type = VGA_TEXT_MODE;
+        }
     } else {
         graphics_data.type = VGA_TEXT_MODE;
     }
