@@ -14,8 +14,11 @@ u32 kernel_id_pgtbl[1024] = {0};
 u32 *kernel_pgtbl = (u32 *) ((char *) kernel_id_pgtbl + HIGHER_HALF_BASE);
 u32 *kernel_hh_pgdir = (u32 *) ((char *) kernel_pgdir + HIGHER_HALF_BASE);
 u32 *temp_page_ptr = (u32 *) (HIGHER_HALF_BASE + PGSIZE * (PGDIR_LEN - 1));
-
+ 
+// Write-combining flag
+#define PTE_WC (1 << 3)
 // Must be called after framebuffer info is read from multiboot info.
+__attribute__((__target__("no-sse")))
 void paging_setup(u32 *kernel_pgdir, u32 *kernel_id_pgtbl) {
   // Identity page the first megabyte.
   u32 addr = 0x0;
@@ -56,7 +59,7 @@ void paging_setup(u32 *kernel_pgdir, u32 *kernel_id_pgtbl) {
           u32 new_page_phys_addr = alloc_page_low() * PGSIZE;
           u32 *new_page = (u32 *) new_page_phys_addr;
           for (u32 j = 0; j < PGSIZE / sizeof(u32); j++) {
-              new_page[j] = addr | 0x3;
+              new_page[j] = addr | 0x3 | PTE_WC;
               addr += PGSIZE;
           }
 
@@ -71,7 +74,7 @@ void paging_setup(u32 *kernel_pgdir, u32 *kernel_id_pgtbl) {
                    "mov %%eax, %%cr3\n"
 
                    "mov %%cr0, %%eax\n"
-                   "orl $0x80000001, %%eax\n"
+                   "or $0x80000001, %%eax\n"
                    "mov %%eax, %%cr0\n"
                    :
                    : "r"(kernel_pgdir)

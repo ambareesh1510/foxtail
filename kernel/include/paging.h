@@ -24,6 +24,7 @@ extern u32 *temp_page_ptr;
 
 void 
 __attribute__ ((section(".boot.text")))
+__attribute__((__target__("no-sse")))
 paging_setup(u32 *kernel_pgdir, u32 *kernel_id_pgtbl);
 
 #endif /* PAGING_H */

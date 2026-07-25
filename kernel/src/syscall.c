@@ -14,6 +14,8 @@
 #include "kstring.h"
 #include "vga.h"
 
+#include "emmintrin.h"
+
 char pipe_buffers[NUM_PIPE_BUFS][PIPE_BUF_SIZE] = {0};
 struct pipe_data pipe_data[NUM_PIPE_BUFS] = {0};
 
@@ -982,6 +984,38 @@ void sys_draw_pixels(struct syscall_registers *s) {
     u32 width = s->edx;
     u32 actual_height = min(height, graphics_data_high->height);
     u32 actual_width = min(width, graphics_data_high->width);
+    if (graphics_data_high->depth == 32) {
+        // Manual optimization; this should be turned into simd
+        // u32 *fb = (u32 *) VGA_GRAPHICS_FB;
+        /*
+        for (u32 y = 0; y < actual_height; y++) {
+            for (u32 x = 0; x < actual_width; x++) {
+                u32 *pixel_ptr = (u32 *) (VGA_GRAPHICS_FB + y * graphics_data_high->pitch + x * graphics_data_high->depth / 8);
+                *pixel_ptr = buf[y * width + x];
+            }
+        }
+        */
+        for (u32 y = 0; y < actual_height; y++) {
+            u8 *dst_row = (u8 *) (VGA_GRAPHICS_FB + y * graphics_data_high->pitch);
+            u32 *src_row = &buf[y * width];
+
+            u32 x = 0;
+
+            // Copy 4 pixels (128 bits) at a time
+            for (; x + 4 <= actual_width; x += 4) {
+                __m128i pixels = _mm_loadu_si128((__m128i *)&src_row[x]);
+                _mm_storeu_si128(
+                    (__m128i *)(dst_row + x * (graphics_data_high->depth / 8)),
+                    pixels
+                );
+            }
+
+            // Handle remaining pixels
+            for (; x < actual_width; x++) {
+                *(u32 *)(dst_row + x * (graphics_data_high->depth / 8)) = src_row[x];
+            }
+        }
+    }
     for (u32 y = 0; y < actual_height; y++) {
         for (u32 x = 0; x < actual_width; x++) {
             u32 color = buf[y * width + x];
@@ -998,6 +1032,11 @@ void sys_wait_ticks(struct syscall_registers *s) {
     curr_proc->waiting_on = ticks + s->ebx;
     __asm__ volatile ("int $0x20");
     s->eax = 0;
+    return;
+}
+
+void sys_get_ticks(struct syscall_registers *s) {
+    s->eax = ticks;
     return;
 }
 
@@ -1090,6 +1129,9 @@ void syscall_interrupt_handler_inner(struct syscall_registers *s) {
             break;
         case SYS_WAIT_TICKS:
             sys_wait_ticks(s);
+            break;
+        case SYS_GET_TICKS:
+            sys_get_ticks(s);
             break;
         default:
             kprintf("Invalid syscall code: %x\n", s->eax);

@@ -3,6 +3,7 @@
 #include "gdt.h"
 #include "io.h"
 #include "proc.h"
+#include "sse.h"
 #include "vga.h"
 #include "paging.h"
 #include "fs.h"
@@ -21,9 +22,15 @@ u32 free_pages = 0;
 
 u32 *free_pages_high = (u32 *) ((char *) &free_pages + HIGHER_HALF_BASE);
 
+__attribute__ ((aligned(4096)))
+__attribute__ ((section(".boot.data")))
+char low_kernel_stack[PGSIZE];
+
 void 
 __attribute__ ((section(".boot.text")))
 kernel_main(void) {
+    __asm__ volatile ("mov %0, %%esp\n" : : "r"(low_kernel_stack + PGSIZE) : "esp");
+    enable_sse();
     struct multiboot_info *multiboot_info;
     __asm__ volatile (
         "mov %%ebx, %0\n"

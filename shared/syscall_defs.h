@@ -31,6 +31,7 @@ enum syscall_code {
     SYS_GET_GRAPHICS_MODE,
     SYS_DRAW_PIXELS,
     SYS_WAIT_TICKS,
+    SYS_GET_TICKS,
 };
 
 #define SYS_WRITE_SUCCESS 0
@@ -441,6 +442,17 @@ static inline void wait_ticks(unsigned int ticks) {
         : "memory"
     );
     return; 
+}
+
+static inline int get_ticks() {
+    int ret;
+    __asm__ volatile(
+        "int $0x80"
+        : "=a"(ret)
+        : "a"(SYS_GET_TICKS)
+        : "memory"
+    );
+    return ret; 
 }
 
 #endif /* SYSCALL_DEFS_H */

@@ -571,7 +571,6 @@ void pit_set_frequency(u32 hz) {
     outb(PIT_CH0, (divisor >> 8) & 0xFF); // high byte
 }
 
-
 #define IDT_FLAG_INTERRUPT_GATE 0x8E
 #define IDT_FLAG_USER_INTERRUPT_GATE 0xEE
 
